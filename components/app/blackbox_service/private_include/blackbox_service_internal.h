@@ -1,0 +1,21 @@
+#ifndef BLACKBOX_SERVICE_INTERNAL_H
+#define BLACKBOX_SERVICE_INTERNAL_H
+
+#include "blackbox.h"
+#include "esp_err.h"
+
+namespace BlackboxService::Internal {
+
+struct LogEvent {
+    char text[Blackbox::TEXT_BUFFER_SIZE];
+};
+
+void install_log_capture();
+bool pop_log_event(LogEvent* event);
+esp_err_t drain_pending_logs();
+esp_err_t sync_pending_logs();
+esp_err_t start_worker();
+
+} // namespace BlackboxService::Internal
+
+#endif
