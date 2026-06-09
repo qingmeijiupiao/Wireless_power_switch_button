@@ -10,4 +10,5 @@ idf_component_register(
         power_manager
         status_led
         esp_common
+        esp_timer
 )

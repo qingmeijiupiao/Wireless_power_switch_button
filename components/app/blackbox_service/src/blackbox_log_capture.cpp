@@ -18,6 +18,8 @@ LogEvent event_ring[LOG_EVENT_RING_SIZE];
 size_t event_ring_read;
 size_t event_ring_write;
 size_t event_ring_used;
+uint32_t captured_logs;
+uint32_t dropped_logs;
 vprintf_like_t previous_log_vprintf;
 bool capture_busy;
 char capture_line[LOG_LINE_BUFFER_SIZE];
@@ -33,6 +35,23 @@ bool is_internal_tag(const char* tag, size_t length) {
     for (const char* internal_tag : INTERNAL_TAGS) {
         if (strlen(internal_tag) == length &&
             strncmp(tag, internal_tag, length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool keep_info_tag(const char* tag, size_t length) {
+    constexpr const char* INFO_TAGS[] = {
+        "app_main",
+        "ButtonInput",
+        "EspNowPairing",
+        "EspNowRemote",
+        "PowerManager",
+    };
+    for (const char* info_tag : INFO_TAGS) {
+        if (strlen(info_tag) == length &&
+            strncmp(tag, info_tag, length) == 0) {
             return true;
         }
     }
@@ -81,6 +100,9 @@ bool format_log_event(const char* raw, LogEvent* event) {
     if (is_internal_tag(tag, tag_length)) {
         return false;
     }
+    if (level == 'I' && !keep_info_tag(tag, tag_length)) {
+        return false;
+    }
     message += 2;
 
     size_t message_length = strlen(message);
@@ -107,6 +129,9 @@ void push_log_event(const LogEvent& event) {
         event_ring[event_ring_write] = event;
         event_ring_write = (event_ring_write + 1) % LOG_EVENT_RING_SIZE;
         ++event_ring_used;
+        ++captured_logs;
+    } else {
+        ++dropped_logs;
     }
     portEXIT_CRITICAL(&event_ring_lock);
 }
@@ -161,6 +186,22 @@ bool pop_log_event(LogEvent* event) {
     --event_ring_used;
     portEXIT_CRITICAL(&event_ring_lock);
     return true;
+}
+
+void get_capture_statistics(uint32_t* captured,
+                            uint32_t* dropped,
+                            size_t* pending) {
+    portENTER_CRITICAL(&event_ring_lock);
+    if (captured != nullptr) {
+        *captured = captured_logs;
+    }
+    if (dropped != nullptr) {
+        *dropped = dropped_logs;
+    }
+    if (pending != nullptr) {
+        *pending = event_ring_used;
+    }
+    portEXIT_CRITICAL(&event_ring_lock);
 }
 
 } // namespace BlackboxService::Internal

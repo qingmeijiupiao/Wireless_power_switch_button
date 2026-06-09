@@ -12,6 +12,10 @@ struct LogEvent {
 
 void install_log_capture();
 bool pop_log_event(LogEvent* event);
+void get_capture_statistics(uint32_t* captured_logs,
+                            uint32_t* dropped_logs,
+                            size_t* pending_logs);
+uint32_t get_persist_failures();
 esp_err_t drain_pending_logs();
 esp_err_t sync_pending_logs();
 esp_err_t start_worker();

@@ -12,6 +12,8 @@ idf_component_register(
         power_manager
         shell_command
         status_led
+        esp_system
+        esp_timer
         log
 )
 

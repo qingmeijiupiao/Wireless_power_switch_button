@@ -56,4 +56,14 @@ esp_err_t append_text_event(const char* fmt, ...) {
     return ret;
 }
 
+void get_statistics(Statistics* statistics) {
+    if (statistics == nullptr) {
+        return;
+    }
+    Internal::get_capture_statistics(&statistics->captured_logs,
+                                     &statistics->dropped_logs,
+                                     &statistics->pending_logs);
+    statistics->persist_failures = Internal::get_persist_failures();
+}
+
 } // namespace BlackboxService

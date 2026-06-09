@@ -5,7 +5,7 @@
 ## 模块特点
 
 - **数据结构无关**：以固定大小 `block` 为单位读写，不解析 payload 内容
-- **性能优化 (O(1) 启动)**：利用 Head 指针位置逻辑推导 `block_count`，启动耗时与分区大小无关
+- **快速启动恢复**：扫描页边界定位 Head，并利用 Head 指针位置推导 `block_count`
 - **边界一致性自检**：引入 **Sentinel Sector (2号扇区哨兵)** 机制，识别并修复 `erase_all` 过程中掉电导致的数据异常
 - **循环覆盖**：写满后自动回绕，始终保持写入头 (Head) 的下一个扇区为空（预擦除）
 - **线程安全**：FreeRTOS 互斥锁保护读写、擦除、计数查询和启停操作
@@ -50,9 +50,10 @@ flowchart TD
 ### 启动恢复流程
 
 1. **寻空**：线性扫描物理页，找到第一个全 `0xFF` 的空页。
-2. **定头**：通过检查分区末尾状态判定是“初始增长”还是“已回绕”。
+2. **定头**：若 0 号页为空，检查最后两个扇区的第一页，区分全新分区、Head 位于
+   最后一个扇区和 Head 已回到 0 号页；随后在目标扇区内定位具体页及块偏移。
 3. **自检 (Consistency Check)**：如果 Head 处于物理开头但哨兵扇区 (Index 2) 异常为空，判定为 `erase_all` 中断，执行全区物理补擦。
-4. **计数推导**：基于 Head 坐标直接计算有效 `block_count`，无需扫描全区。
+4. **计数推导**：基于 Head 坐标和回绕状态计算有效 `block_count`。
 
 ## 集成与使用
 
@@ -105,4 +106,11 @@ CircularFlashBuffer::erase_all();
 |------|------|
 | 框架 | ESP-IDF v6.0+ |
 | 硬件 | ESP32 系列，需在分区表中预留 DATA 分区 |
-| 组件依赖 | `esp_partition`, `spi_flash`, `freertos`, `log` |
+
+<!-- dependency-links:start -->
+## 依赖导航
+
+无工程内组件依赖；仅依赖 ESP-IDF 组件或 C/C++ 标准库。
+
+> 本节按当前 `CMakeLists.txt` 的 `REQUIRES` / `PRIV_REQUIRES` 维护。
+<!-- dependency-links:end -->

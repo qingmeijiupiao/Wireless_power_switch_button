@@ -3,7 +3,10 @@
 #include "blackbox.h"
 #include "blackbox_service.h"
 #include "button_input.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
+#include "esp_timer.h"
 #include "espnow_remote.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -39,20 +42,35 @@ const char* wake_source_name(PowerManager::WakeSource source) {
     }
 }
 
+const char* reset_reason_name(esp_reset_reason_t reason) {
+    switch (reason) {
+        case ESP_RST_POWERON: return "power_on";
+        case ESP_RST_EXT: return "external";
+        case ESP_RST_SW: return "software";
+        case ESP_RST_PANIC: return "panic";
+        case ESP_RST_INT_WDT: return "interrupt_wdt";
+        case ESP_RST_TASK_WDT: return "task_wdt";
+        case ESP_RST_WDT: return "other_wdt";
+        case ESP_RST_DEEPSLEEP: return "deep_sleep";
+        case ESP_RST_BROWNOUT: return "brownout";
+        case ESP_RST_SDIO: return "sdio";
+        case ESP_RST_USB: return "usb";
+        case ESP_RST_JTAG: return "jtag";
+        case ESP_RST_EFUSE: return "efuse";
+        case ESP_RST_PWR_GLITCH: return "power_glitch";
+        case ESP_RST_CPU_LOCKUP: return "cpu_lockup";
+        case ESP_RST_UNKNOWN:
+        default:
+            return "unknown";
+    }
+}
+
 void log_wakeup(esp_err_t result, int battery_voltage_mv, void* context) {
-    const auto& wake = *static_cast<const WakeLogContext*>(context);
+    (void)context;
     (void)BlackboxService::append_text_event(
-        "wake: source=%s battery_mv=%d battery_result=%s usb=%u button=%u "
-        "firmware=%d.%d.%d build=%s",
-        wake_source_name(wake.source),
+        "battery: voltage_mv=%d result=%s",
         battery_voltage_mv,
-        esp_err_to_name(result),
-        wake.usb_mode ? 1U : 0U,
-        wake.button_pressed ? 1U : 0U,
-        VERSION_MAJOR,
-        VERSION_MINOR,
-        VERSION_PATCH,
-        BUILD_TIME);
+        esp_err_to_name(result));
 }
 
 bool button_wakeup(PowerManager::WakeSource source) {
@@ -68,7 +86,21 @@ void sleep_when_inputs_idle() {
     }
     ESP_LOGI(TAG, "entering deep sleep");
     int battery_voltage_mv = 0;
-    (void)BatteryVoltage::wait_mv(battery_voltage_mv);
+    const esp_err_t battery_result = BatteryVoltage::wait_mv(battery_voltage_mv);
+    BlackboxService::Statistics statistics = {};
+    BlackboxService::get_statistics(&statistics);
+    (void)BlackboxService::append_text_event(
+        "sleep: uptime_ms=%llu battery_mv=%d battery_result=%s heap_free=%lu "
+        "heap_min=%lu records=%lu/%lu log_drop=%lu persist_fail=%lu",
+        static_cast<unsigned long long>(esp_timer_get_time() / 1000),
+        battery_voltage_mv,
+        esp_err_to_name(battery_result),
+        static_cast<unsigned long>(esp_get_free_heap_size()),
+        static_cast<unsigned long>(esp_get_minimum_free_heap_size()),
+        static_cast<unsigned long>(Blackbox::count()),
+        static_cast<unsigned long>(Blackbox::capacity()),
+        static_cast<unsigned long>(statistics.dropped_logs),
+        static_cast<unsigned long>(statistics.persist_failures));
     (void)BlackboxService::sync();
     ESP_ERROR_CHECK(PowerManager::enter_deep_sleep());
 }
@@ -96,6 +128,20 @@ extern "C" void app_main(void) {
         .usb_mode = usb_mode,
         .button_pressed = PowerManager::button_pressed(),
     };
+    (void)BlackboxService::append_text_event(
+        "boot: reset=%s wake=%s usb=%u button=%u heap_free=%lu heap_min=%lu",
+        reset_reason_name(esp_reset_reason()),
+        wake_source_name(source),
+        usb_mode ? 1U : 0U,
+        wake_log_context.button_pressed ? 1U : 0U,
+        static_cast<unsigned long>(esp_get_free_heap_size()),
+        static_cast<unsigned long>(esp_get_minimum_free_heap_size()));
+    (void)BlackboxService::append_text_event(
+        "firmware: version=%d.%d.%d build=%s",
+        VERSION_MAJOR,
+        VERSION_MINOR,
+        VERSION_PATCH,
+        BUILD_TIME);
     ESP_ERROR_CHECK(BatteryVoltage::start_async(log_wakeup, &wake_log_context));
 
     if (!usb_mode && !process_button) {
@@ -105,6 +151,8 @@ extern "C" void app_main(void) {
 
     ESP_ERROR_CHECK(EspNowRemote::init());
     ButtonInput::notify_radio_ready();
+    ESP_LOGI(TAG, "radio ready usb=%u button_transaction=%u",
+             usb_mode ? 1U : 0U, process_button ? 1U : 0U);
 
     if (!usb_mode) {
         sleep_when_inputs_idle();

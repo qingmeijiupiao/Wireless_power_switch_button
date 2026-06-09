@@ -124,32 +124,40 @@ esp_err_t CircularFlashBuffer::init(const char* partition_name, size_t block_siz
         // 情况 A：物理起始位置就是空的。
         // 关键临界点：当 Head 处于最后一个扇区时，0 号扇区会被预擦除。
         // 我们需要通过检查分区末尾的“连续性”来区分是“全新”还是“正在跨越物理边界”。
-        esp_partition_read(cfb_partition, (total_pages - 1) * PAGE_SIZE, buffer, PAGE_SIZE);
-        bool max_page_empty_1 = !memcmp(buffer, page_buffer, PAGE_SIZE);
-        esp_partition_read(cfb_partition, (total_pages - 2) * PAGE_SIZE, buffer, PAGE_SIZE);
-        bool max_page_empty_2 = !memcmp(buffer, page_buffer, PAGE_SIZE);
+        const uint32_t last_sector_start = (total_sectors - 1) * PAGES_PER_SECTOR;
+        const uint32_t previous_sector_start = (total_sectors - 2) * PAGES_PER_SECTOR;
+
+        esp_partition_read(cfb_partition, last_sector_start * PAGE_SIZE, buffer, PAGE_SIZE);
+        bool last_sector_started = memcmp(buffer, page_buffer, PAGE_SIZE) != 0;
+        esp_partition_read(cfb_partition, previous_sector_start * PAGE_SIZE, buffer, PAGE_SIZE);
+        bool previous_sector_started = memcmp(buffer, page_buffer, PAGE_SIZE) != 0;
         
-        if (max_page_empty_2 && max_page_empty_1) {
-            // 全新状态：分区开头和末尾全是空的
+        if (!previous_sector_started) {
+            // 全新状态：倒数第二个扇区仍为空，不可能已经循环写到末尾。
             now_write_page = 0;
             block_page_index = 0;
-        } else if (!max_page_empty_2 && max_page_empty_1) {
-            // 临界状态：正在填充最后一个扇区。此时 0 号扇区已空，但末尾尚未写完。
-            // 我们需要定位到最后一个扇区内的第一个空页。
-            uint32_t last_sector_start = (total_sectors - 1) * PAGES_PER_SECTOR;
+        } else if (!last_sector_started) {
+            // 刚进入最后一个扇区，0 号扇区已经预擦除，但末扇区还没有写入。
+            now_write_page = last_sector_start;
+            block_page_index = 0;
+        } else {
+            // 最后一个扇区已经开始写入。优先在扇区内定位可写页；若整个扇区
+            // 均已写满，则 Head 已跨越物理边界回到 0 号页。
+            bool writable_page_found = false;
             for (uint32_t p = last_sector_start; p < total_pages; p++) {
                 esp_partition_read(cfb_partition, p * PAGE_SIZE, buffer, PAGE_SIZE);
-                if (!memcmp(buffer, page_buffer, PAGE_SIZE)) {
+                uint8_t index = get_empty_block_index_from_page(buffer);
+                if (index != cfb_blocks_per_page) {
                     now_write_page = p;
-                    block_page_index = 0;
+                    block_page_index = index;
+                    writable_page_found = true;
                     break;
                 }
             }
-        } else {
-            // 典型回绕：分区末尾已写满，0 号页刚被擦除完毕。
-            now_write_page = 0;
-            esp_partition_read(cfb_partition, 0, buffer, PAGE_SIZE);
-            block_page_index = get_empty_block_index_from_page(buffer);
+            if (!writable_page_found) {
+                now_write_page = 0;
+                block_page_index = 0;
+            }
         }
     } else {
         // 情况 B：物理开头有数据，中间发现空页。Head 在前一个已写页内。
@@ -179,9 +187,17 @@ esp_err_t CircularFlashBuffer::init(const char* partition_name, size_t block_siz
     }
 
     // 6. 计算有效块总数
-    esp_partition_read(cfb_partition, (total_pages - 1) * PAGE_SIZE, buffer, PAGE_SIZE);
-    bool is_wrapped = (buffer[0] == BLOCK_SOF);
     uint32_t blocks_per_sector = PAGES_PER_SECTOR * cfb_blocks_per_page;
+    uint32_t current_sector = now_write_page / PAGES_PER_SECTOR;
+    bool is_wrapped = current_sector >= total_sectors - 2;
+
+    if (!is_wrapped && now_write_page < total_pages - PAGES_PER_SECTOR) {
+        // Head 已越过物理边界后，末扇区仍保留旧数据；只检查其第一页即可
+        // 区分正常线性增长和回绕后的低地址 Head。
+        uint32_t last_sector_start = (total_sectors - 1) * PAGES_PER_SECTOR;
+        esp_partition_read(cfb_partition, last_sector_start * PAGE_SIZE, buffer, PAGE_SIZE);
+        is_wrapped = buffer[0] == BLOCK_SOF;
+    }
 
     if (!is_wrapped) {
         // 线性增长阶段：数据从 0 开始

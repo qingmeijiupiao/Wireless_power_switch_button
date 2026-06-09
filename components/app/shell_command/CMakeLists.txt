@@ -9,4 +9,6 @@ idf_component_register(
         espnow_service
         shell
         status_led
+        esp_system
+        esp_timer
 )

@@ -12,6 +12,7 @@
 
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "espnow_remote.h"
 #include "espnow_service.h"
 #include "freertos/FreeRTOS.h"
@@ -41,11 +42,17 @@ void command_task(void* arg) {
     const CommandContext context = *static_cast<CommandContext*>(arg);
     delete static_cast<CommandContext*>(arg);
 
+    const int64_t started_us = esp_timer_get_time();
     while (!radio_ready.load()) {
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
     const esp_err_t ret = EspNowRemote::send_switch(context.action);
+    const int64_t elapsed_ms = (esp_timer_get_time() - started_us) / 1000;
+    ESP_LOGI(TAG, "remote command action=%s result=%s elapsed_ms=%lld",
+             context.action == EspNowService::SwitchAction::ON ? "on" : "off",
+             esp_err_to_name(ret),
+             static_cast<long long>(elapsed_ms));
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "remote command failed: %s", esp_err_to_name(ret));
         StatusLed::blink(2, FAILURE_BLINK_MS, FAILURE_BLINK_MS);
@@ -69,6 +76,8 @@ esp_err_t start_command(EspNowService::SwitchAction action) {
 void process_press(uint32_t initial_duration_ms) {
     busy.store(true);
     StatusLed::on();
+    ESP_LOGI(TAG, "button transaction start initial_ms=%lu",
+             static_cast<unsigned long>(initial_duration_ms));
 
     uint32_t duration_ms = initial_duration_ms;
     bool long_triggered = false;
@@ -103,6 +112,9 @@ void process_press(uint32_t initial_duration_ms) {
         ESP_LOGE(TAG, "failed to create command task");
         StatusLed::blink(2, FAILURE_BLINK_MS, FAILURE_BLINK_MS);
     }
+    ESP_LOGI(TAG, "button transaction complete action=%s duration_ms=%lu",
+             long_triggered ? "on" : "off",
+             static_cast<unsigned long>(duration_ms));
     busy.store(false);
 }
 

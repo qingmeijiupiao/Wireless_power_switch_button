@@ -19,7 +19,7 @@
 
 | 子命令 | 说明 |
 |--------|------|
-| `blackbox` / `blackbox status` | 显示启用状态和已落盘原始记录数 |
+| `blackbox` / `blackbox status` | 显示容量、捕获管线、芯片运行时间和堆状态 |
 | `blackbox dump [count]` | 同步后按从新到旧输出，默认 100 条 |
 | `blackbox pull [count]` | `dump` 的同义命令 |
 | `blackbox dump all` / `pull all` | 输出全部逻辑日志 |
@@ -30,11 +30,13 @@
 
 ```text
 BLACKBOX_DUMP_BEGIN persisted_records=... limit=... order=newest_first
-r=0 t=97 n=3 [I][app_main] entering deep sleep
+r=0 t_ms=97 n=3 [I][app_main] entering deep sleep
 BLACKBOX_DUMP_END emitted=... consumed_records=... remaining_records=...
 ```
 
-其中 `r` 为原始记录索引，`t` 为启动后毫秒时间戳，`n` 为字符串分片数。
+其中 `r` 为原始记录索引，`t_ms` 是 32 位启动后毫秒时间戳，
+`n` 为字符串分片数。
+深度休眠唤醒后计时重新开始，使用 `boot:` 记录划分不同启动会话。
 当前工程仅保存字符串，因此不重复输出 `type=STRING` 和 `text=`。
 
 控制字符会转义为 `\r`、`\n`、`\t` 和 `\\`。

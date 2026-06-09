@@ -16,6 +16,8 @@
 #include "blackbox.h"
 #include "blackbox_service.h"
 #include "esp_check.h"
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "espnow_remote.h"
 #include "espnow_service.h"
 #include "shell.h"
@@ -178,9 +180,21 @@ esp_err_t init() {
             const char* action = argc >= 2 ? argv[1] : "status";
 
             if (strcmp(action, "status") == 0) {
-                printf("Blackbox status: enabled=%d persisted_records=%lu\n",
+                BlackboxService::Statistics statistics = {};
+                BlackboxService::get_statistics(&statistics);
+                printf("Blackbox status: enabled=%d records=%lu/%lu "
+                       "captured=%lu pending=%u dropped=%lu persist_failures=%lu\n",
                        Blackbox::is_enabled(),
-                       static_cast<unsigned long>(Blackbox::count()));
+                       static_cast<unsigned long>(Blackbox::count()),
+                       static_cast<unsigned long>(Blackbox::capacity()),
+                       static_cast<unsigned long>(statistics.captured_logs),
+                       static_cast<unsigned>(statistics.pending_logs),
+                       static_cast<unsigned long>(statistics.dropped_logs),
+                       static_cast<unsigned long>(statistics.persist_failures));
+                printf("Chip uptime_ms=%llu heap_free=%lu heap_min=%lu\n",
+                       static_cast<unsigned long long>(esp_timer_get_time() / 1000),
+                       static_cast<unsigned long>(esp_get_free_heap_size()),
+                       static_cast<unsigned long>(esp_get_minimum_free_heap_size()));
                 return 0;
             }
 
@@ -259,7 +273,7 @@ esp_err_t init() {
                     const Blackbox::Record record = Blackbox::read(index);
                     const Blackbox::TextRecord text = Blackbox::read_text(index);
                     if (text.record_count != 0) {
-                        printf("r=%lu t=%lu n=%u ",
+                        printf("r=%lu t_ms=%lu n=%u ",
                                static_cast<unsigned long>(index),
                                static_cast<unsigned long>(record.header.timestamp),
                                static_cast<unsigned>(text.record_count));

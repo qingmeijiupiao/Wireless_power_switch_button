@@ -5,17 +5,29 @@ ESP-IDF 日志，并负责深睡前同步。
 
 ## 记录策略
 
-- 捕获 `ESP_LOGI`、`ESP_LOGW`、`ESP_LOGE`。
+- 捕获全部 `ESP_LOGW`、`ESP_LOGE`。
+- `ESP_LOGI` 只保留产品关键 TAG，过滤 WiFi、PHY、协议栈和 Shell 初始化噪声。
 - 所有记录均保存为字符串，不定义结构化日志协议。
 - 落盘格式为 `[I][TAG] message`、`[W][TAG] message` 或 `[E][TAG] message`。
 - 排除黑匣子内部 TAG，防止 Flash 写入日志递归捕获。
-- 每次唤醒由 `app_main` 显式写入一条 `wake:` 记录。
+- 每次启动由 `app_main` 显式写入 `boot:` 记录，休眠前写入 `sleep:` 记录。
+- 统计日志捕获数、RAM 环丢弃数和持久化提交失败数。
 
-唤醒记录包含：
+启动阶段记录包含：
 
 ```text
-wake: source=<source> battery_mv=<mV> battery_result=<err>
-      usb=<0|1> button=<0|1> firmware=<major.minor.patch> build=<time>
+boot: reset=<reason> wake=<source> usb=<0|1> button=<0|1>
+      heap_free=<bytes> heap_min=<bytes>
+firmware: version=<major.minor.patch> build=<time>
+battery: voltage_mv=<mV> result=<err>
+```
+
+休眠记录包含：
+
+```text
+sleep: uptime_ms=<ms> battery_mv=<mV> battery_result=<err>
+       heap_free=<bytes> heap_min=<bytes> records=<used>/<capacity>
+       log_drop=<count> persist_fail=<count>
 ```
 
 ## 数据流
@@ -55,6 +67,7 @@ BlackboxService::sync();
 - 当前实现依赖 `CONFIG_LOG_VERSION_1=y`。
 - 单条逻辑字符串最多 199 字符，超出部分由 middleware 截断。
 - RAM 环满时新捕获日志会丢弃，业务日志调用不会等待 Flash。
+- `get_statistics()` 可读取捕获、待处理、丢弃和持久化失败计数。
 - `sync()` 仅用于导出和休眠边界，不应放入按键实时反馈路径。
 
 ## 环境与依赖

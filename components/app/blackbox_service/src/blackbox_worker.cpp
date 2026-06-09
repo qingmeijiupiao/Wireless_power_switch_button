@@ -9,6 +9,7 @@ namespace {
 
 constexpr TickType_t WORKER_POLL_TICKS = pdMS_TO_TICKS(20);
 SemaphoreHandle_t drain_mutex;
+uint32_t persist_failures;
 
 esp_err_t drain_pending_logs_locked() {
     esp_err_t result = ESP_OK;
@@ -17,6 +18,9 @@ esp_err_t drain_pending_logs_locked() {
         const esp_err_t append_result = Blackbox::append_text("%s", event.text);
         if (result == ESP_OK && append_result != ESP_OK) {
             result = append_result;
+        }
+        if (append_result != ESP_OK) {
+            ++persist_failures;
         }
     }
     return result;
@@ -68,6 +72,16 @@ esp_err_t start_worker() {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
+}
+
+uint32_t get_persist_failures() {
+    if (drain_mutex == nullptr) {
+        return 0;
+    }
+    xSemaphoreTake(drain_mutex, portMAX_DELAY);
+    const uint32_t result = persist_failures;
+    xSemaphoreGive(drain_mutex);
+    return result;
 }
 
 } // namespace BlackboxService::Internal
