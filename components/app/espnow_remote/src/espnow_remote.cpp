@@ -9,6 +9,7 @@
 
 #include <cstdio>
 
+#include "battery_level.h"
 #include "blackbox_service.h"
 #include "esp_check.h"
 #include "esp_log.h"
@@ -72,6 +73,21 @@ bool controller_peer(EspNowLink::MacAddress* address) {
             return true;
     }
     return false;
+}
+
+/** @brief 在控制事务结束后尽力上报当前显示电量，不影响控制结果。 */
+void send_battery_after_control(const EspNowLink::MacAddress& peer) {
+    BatteryLevel::Status level = {};
+    if (!BatteryLevel::get_status(level)) {
+        ESP_LOGW(TAG, "battery status unavailable after control");
+        return;
+    }
+
+    const esp_err_t ret =
+        EspNowService::send_remote_battery(peer, level.displayed_percent);
+    ESP_LOGI(TAG, "battery tx percent=%u submit=%s",
+             static_cast<unsigned>(level.displayed_percent),
+             esp_err_to_name(ret));
 }
 
 /**
@@ -214,8 +230,12 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
     print_mac(peer);
     printf(" action=%s request_id=%lu submit=%s\n", action_name(action),
            static_cast<unsigned long>(pending_switch_id), esp_err_to_name(ret));
-    if (ret != ESP_OK || !wait_response) {
+    if (ret != ESP_OK) {
         return ret;
+    }
+    if (!wait_response) {
+        send_battery_after_control(peer);
+        return ESP_OK;
     }
 
     // 先等待链路层 ACK，再等待带相同 request_id 的业务响应。
@@ -225,6 +245,7 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
     if ((bits & SWITCH_TRANSPORT_BIT) == 0 ||
         switch_transport_result != EspNowLink::SendResult::ACKNOWLEDGED) {
         pending_switch_id = 0;
+        send_battery_after_control(peer);
         return ESP_ERR_TIMEOUT;
     }
     bits = xEventGroupGetBits(response_events);
@@ -236,7 +257,10 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
         xEventGroupClearBits(response_events, SWITCH_RESPONSE_BIT);
     }
     pending_switch_id = 0;
-    return (bits & SWITCH_RESPONSE_BIT) != 0 ? ESP_OK : ESP_ERR_TIMEOUT;
+    const esp_err_t result =
+        (bits & SWITCH_RESPONSE_BIT) != 0 ? ESP_OK : ESP_ERR_TIMEOUT;
+    send_battery_after_control(peer);
+    return result;
 }
 
 esp_err_t read_data(bool check_channel) {

@@ -13,6 +13,7 @@ namespace {
 
 constexpr size_t SWITCH_REQUEST_SIZE = 5;
 constexpr size_t SWITCH_RESPONSE_SIZE = 7;
+constexpr size_t REMOTE_BATTERY_SIZE = 1;
 constexpr size_t DATA_REQUEST_SIZE = 4;
 constexpr size_t DATA_MESSAGE_SIZE = 40;
 
@@ -48,6 +49,15 @@ size_t encode_switch_response(const SwitchResponse& response,
     output[5] = static_cast<uint8_t>(response.result);
     output[6] = response.output_on ? 1 : 0;
     return SWITCH_RESPONSE_SIZE;
+}
+
+/** @brief 编码远程开关电量，payload 仅包含 0..100 的百分比。 */
+size_t encode_remote_battery(uint8_t battery_percent, uint8_t* output, size_t capacity) {
+    if (output == nullptr || capacity < REMOTE_BATTERY_SIZE || battery_percent > 100) {
+        return 0;
+    }
+    output[0] = battery_percent;
+    return REMOTE_BATTERY_SIZE;
 }
 
 /**

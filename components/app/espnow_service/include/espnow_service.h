@@ -44,6 +44,13 @@ struct DeviceData {
     uint8_t status_flags = 0;
 };
 
+/** 本次运行中最近一次控制包对应的远程开关状态。 */
+struct RemoteSwitchStatus {
+    bool connected = false;
+    bool battery_valid = false;
+    uint8_t battery_percent = 0;
+};
+
 /** 收到控制响应时通知请求方。 */
 using SwitchResponseHandler = void (*)(const EspNowLink::MacAddress& source,
                                        uint32_t request_id,
@@ -67,6 +74,18 @@ using DataReceivedHandler = void (*)(const EspNowLink::MacAddress& source,
 
 /** @brief 注册产品协议支持的全部 ESP-NOW 消息回调。 */
 esp_err_t init();
+
+/** @brief 返回本次运行中观察到的远程开关及其最近电量。 */
+bool get_remote_switch_status(RemoteSwitchStatus& status);
+
+/**
+ * @brief 尽力向已配对设备发送本机电量，不等待链路 ACK
+ * @param battery_percent 电量百分比，范围 0..100
+ */
+esp_err_t send_remote_battery(const EspNowLink::MacAddress& destination,
+                              uint8_t battery_percent,
+                              EspNowLink::SendCallback callback = nullptr,
+                              void* context = nullptr);
 
 /** @brief 注册或清除控制响应通知，handler 为 nullptr 时清除。 */
 void set_switch_response_handler(SwitchResponseHandler handler, void* context = nullptr);
