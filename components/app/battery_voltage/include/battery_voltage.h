@@ -14,6 +14,16 @@
 namespace BatteryVoltage {
 
 using CompletionCallback = void (*)(esp_err_t result, int voltage_mv, void* context);
+using UsbConnectedCallback = bool (*)();
+
+struct CalibrationStatus {
+    uint32_t divider_scale_q16;
+    bool stored_calibration_valid;
+    bool monitor_running;
+    uint16_t stable_sample_count;
+    int stable_min_mv;
+    int stable_max_mv;
+};
 
 /**
  * @brief 初始化 GPIO3 ADC，并确保 GPIO2 采样开关保持高阻
@@ -49,6 +59,22 @@ bool is_busy();
  * @brief 同步兼容接口，内部通过 start_async() 和 wait_mv() 完成。
  */
 esp_err_t read_mv(int& voltage_mv);
+
+/**
+ * @brief 启动 USB 满电电压自动校准任务
+ *
+ * USB 持续连接且电池电压高于 4.0 V 时，每 10 秒采样一次。连续 10 分钟内
+ * 电压极差小于 5 mV，则认为充电已稳定在 4.2 V，并将新的分压倍率写入 NVS。
+ *
+ * @param usb_connected 查询 USB 插入状态的无阻塞回调
+ */
+esp_err_t start_calibration_monitor(UsbConnectedCallback usb_connected);
+
+/** @brief 读取当前倍率和自动校准任务状态。 */
+void get_calibration_status(CalibrationStatus& status);
+
+/** @brief 删除校准结果并恢复默认 2.0 倍分压倍率。 */
+esp_err_t reset_calibration();
 
 } // namespace BatteryVoltage
 

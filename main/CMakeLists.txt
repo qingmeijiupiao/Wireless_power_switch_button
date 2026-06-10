@@ -4,6 +4,7 @@ idf_component_register(
     REQUIRES
         blackbox
         blackbox_service
+        battery_level
         battery_voltage
         button_input
         espnow_link

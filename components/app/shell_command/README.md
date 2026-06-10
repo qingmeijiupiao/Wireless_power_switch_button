@@ -7,7 +7,9 @@
 | 命令 | 说明 |
 |------|------|
 | `version` | 输出固件版本和 UTC+8 编译时间 |
-| `battery` | 读取单节锂电池电压 |
+| `battery status` | 读取电压、电量、分压倍率和自动校准进度 |
+| `battery reset-calibration` | 清除板级电压校准并恢复默认 2.0 倍倍率 |
+| `battery reset-level` | 清除 RTC 中的三份显示电量记录 |
 | `espnow status/peers` | 显示链路、信道和 peer 状态 |
 | `espnow pair/stop/clear` | 管理配对入口和记录 |
 | `remote ...` | 执行开关、读取和链路测试 |
@@ -55,4 +57,4 @@ Build:    2026/06/07 12:00:00
 | 类别 | 要求 |
 |------|------|
 | 框架 | ESP-IDF v6.0+ |
-| 组件 | `shell`, `battery_voltage`, `blackbox_service`, `espnow_remote` |
+| 组件 | `shell`, `battery_level`, `battery_voltage`, `blackbox_service`, `espnow_remote` |

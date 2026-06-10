@@ -1,4 +1,5 @@
 #include "HXC_NVS.h"
+#include "battery_level.h"
 #include "battery_voltage.h"
 #include "blackbox.h"
 #include "blackbox_service.h"
@@ -66,11 +67,22 @@ const char* reset_reason_name(esp_reset_reason_t reason) {
 }
 
 void log_wakeup(esp_err_t result, int battery_voltage_mv, void* context) {
-    (void)context;
+    const auto* wake = static_cast<const WakeLogContext*>(context);
+    if (result != ESP_OK) {
+        (void)BlackboxService::append_text_event(
+            "battery: result=%s", esp_err_to_name(result));
+        return;
+    }
+
+    const BatteryLevel::Status level =
+        BatteryLevel::update(battery_voltage_mv, wake->usb_mode);
     (void)BlackboxService::append_text_event(
-        "battery: voltage_mv=%d result=%s",
+        "battery: voltage_mv=%d estimated=%u displayed=%u charging=%u rtc=%u",
         battery_voltage_mv,
-        esp_err_to_name(result));
+        static_cast<unsigned>(level.estimated_percent),
+        static_cast<unsigned>(level.displayed_percent),
+        level.charging ? 1U : 0U,
+        level.restored_from_rtc ? 1U : 0U);
 }
 
 bool button_wakeup(PowerManager::WakeSource source) {
@@ -85,15 +97,19 @@ void sleep_when_inputs_idle() {
         vTaskDelay(pdMS_TO_TICKS(20));
     }
     ESP_LOGI(TAG, "entering deep sleep");
+
     int battery_voltage_mv = 0;
     const esp_err_t battery_result = BatteryVoltage::wait_mv(battery_voltage_mv);
+    BatteryLevel::Status level = {};
+    const bool level_valid = BatteryLevel::get_status(level);
     BlackboxService::Statistics statistics = {};
     BlackboxService::get_statistics(&statistics);
     (void)BlackboxService::append_text_event(
-        "sleep: uptime_ms=%llu battery_mv=%d battery_result=%s heap_free=%lu "
-        "heap_min=%lu records=%lu/%lu log_drop=%lu persist_fail=%lu",
+        "sleep: uptime_ms=%llu battery_mv=%d battery_pct=%u battery_result=%s "
+        "heap_free=%lu heap_min=%lu records=%lu/%lu log_drop=%lu persist_fail=%lu",
         static_cast<unsigned long long>(esp_timer_get_time() / 1000),
         battery_voltage_mv,
+        level_valid ? static_cast<unsigned>(level.displayed_percent) : 0U,
         esp_err_to_name(battery_result),
         static_cast<unsigned long>(esp_get_free_heap_size()),
         static_cast<unsigned long>(esp_get_minimum_free_heap_size()),
@@ -112,7 +128,8 @@ extern "C" void app_main(void) {
 
     const PowerManager::WakeSource source = PowerManager::wake_source();
     const bool usb_mode = PowerManager::usb_connected();
-    const bool process_button = button_wakeup(source) || PowerManager::button_pressed();
+    const bool process_button =
+        button_wakeup(source) || PowerManager::button_pressed();
 
     ESP_ERROR_CHECK(StatusLed::init());
     if (process_button) {
@@ -159,6 +176,8 @@ extern "C" void app_main(void) {
         return;
     }
 
+    ESP_ERROR_CHECK(
+        BatteryVoltage::start_calibration_monitor(PowerManager::usb_connected));
     ESP_ERROR_CHECK(ShellCommand::init());
     ESP_ERROR_CHECK(ButtonInput::init_usb_mode());
     ESP_LOGI(TAG, "USB mode ready; shell and button input enabled");

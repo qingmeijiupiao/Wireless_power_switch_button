@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "battery_level.h"
 #include "battery_voltage.h"
 #include "blackbox.h"
 #include "blackbox_service.h"
@@ -21,6 +22,7 @@
 #include "espnow_remote.h"
 #include "espnow_service.h"
 #include "shell.h"
+#include "power_manager.h"
 #include "status_led.h"
 
 namespace ShellCommand {
@@ -75,20 +77,58 @@ esp_err_t init() {
         }));
 
     /**
-     * @brief battery - 按需读取本机单节锂电池电压
-     * @usage battery
+     * @brief battery - 查询本机电池电压、电量和校准状态
+     * @usage battery [status|reset-calibration|reset-level]
      * @note 采样期间 GPIO2 开漏拉低，结束后立即恢复高阻。
      */
     shell.register_command(ShellCommand_t(
-        "battery", "Read local battery voltage", "",
-        [](int, char**) {
+        "battery", "Battery level and calibration",
+        "[status|reset-calibration|reset-level]",
+        [](int argc, char** argv) {
+            const char* action = argc > 1 ? argv[1] : "status";
+            if (!strcmp(action, "reset-calibration")) {
+                const esp_err_t ret = BatteryVoltage::reset_calibration();
+                printf("battery calibration reset: %s\n", esp_err_to_name(ret));
+                return ret == ESP_OK ? 0 : 1;
+            }
+            if (!strcmp(action, "reset-level")) {
+                BatteryLevel::reset();
+                printf("battery RTC level reset\n");
+                return 0;
+            }
+            if (strcmp(action, "status") != 0) {
+                printf("Usage: battery [status|reset-calibration|reset-level]\n");
+                return 1;
+            }
+
             int voltage_mv = 0;
             const esp_err_t ret = BatteryVoltage::read_mv(voltage_mv);
             if (ret == ESP_OK) {
-                printf("battery=%d mV\n", voltage_mv);
+                const BatteryLevel::Status level =
+                    BatteryLevel::update(
+                        voltage_mv, PowerManager::usb_connected());
+                printf("battery voltage=%d mV estimated=%u%% displayed=%u%% "
+                       "charging=%u rtc_restored=%u\n",
+                       voltage_mv,
+                       static_cast<unsigned>(level.estimated_percent),
+                       static_cast<unsigned>(level.displayed_percent),
+                       level.charging ? 1U : 0U,
+                       level.restored_from_rtc ? 1U : 0U);
             } else {
                 printf("battery read failed: %s\n", esp_err_to_name(ret));
             }
+
+            BatteryVoltage::CalibrationStatus calibration = {};
+            BatteryVoltage::get_calibration_status(calibration);
+            printf("calibration scale_q16=%lu scale=%.6f stored=%u "
+                   "monitor=%u stable=%u/60 range=%d..%d mV\n",
+                   static_cast<unsigned long>(calibration.divider_scale_q16),
+                   calibration.divider_scale_q16 / 65536.0,
+                   calibration.stored_calibration_valid ? 1U : 0U,
+                   calibration.monitor_running ? 1U : 0U,
+                   static_cast<unsigned>(calibration.stable_sample_count),
+                   calibration.stable_min_mv,
+                   calibration.stable_max_mv);
             return ret == ESP_OK ? 0 : 1;
         }));
 
