@@ -33,6 +33,8 @@ std::atomic_bool busy;
 std::atomic_bool radio_ready;
 TaskHandle_t usb_task_handle;
 
+// 命令任务与按键任务分离：长按触发后可以立即闪灯反馈，无需在按键采集
+// 循环中同步等待信道恢复、链路 ACK 和业务响应。
 struct CommandContext {
     EspNowService::SwitchAction action;
     TaskHandle_t owner;
@@ -43,6 +45,7 @@ void command_task(void* arg) {
     delete static_cast<CommandContext*>(arg);
 
     const int64_t started_us = esp_timer_get_time();
+    // 唤醒按键跟踪早于无线初始化，先生成的命令在此等待 app_runtime 通知。
     while (!radio_ready.load()) {
         vTaskDelay(pdMS_TO_TICKS(5));
     }
@@ -83,6 +86,7 @@ void process_press(uint32_t initial_duration_ms) {
     bool long_triggered = false;
     bool command_started = false;
 
+    // 唤醒场景传入系统初始化期间已经累计的按压时长，避免长按阈值漂移。
     while (gpio_get_level(BUTTON_GPIO) == 0) {
         if (!long_triggered && duration_ms >= PowerManager::LONG_PRESS_MS) {
             long_triggered = true;
@@ -125,6 +129,7 @@ void wakeup_tracking_task(void*) {
 
 void usb_button_task(void*) {
     while (true) {
+        // busy 同时覆盖按键采集和同步无线请求，防止维护模式下重入同一事务。
         if (busy.load() || gpio_get_level(BUTTON_GPIO) != 0) {
             vTaskDelay(pdMS_TO_TICKS(POLL_MS));
             continue;

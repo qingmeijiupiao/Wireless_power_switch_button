@@ -140,7 +140,7 @@ char* NVS_DATA<char*>::read() {
     // 获取所需长度（包含 \0）
     esp_err_t err = nvs_get_str(_handle, key, NULL, &datalen);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "KEY=%s NVS无数据, 使用默认值", key);
+        ESP_LOGW(TAG, "KEY=%s not found in NVS, using default", key);
         is_read = true;
         return value;
     }
@@ -152,7 +152,7 @@ char* NVS_DATA<char*>::read() {
     }
     err = nvs_get_str(_handle, key, arr, &datalen);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "KEY=%s NVS读取失败, 使用默认值", key);
+        ESP_LOGE(TAG, "KEY=%s NVS read failed, using default", key);
         delete[] arr;
         return value;
     }

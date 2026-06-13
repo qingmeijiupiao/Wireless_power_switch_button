@@ -2,20 +2,16 @@ idf_component_register(
     SRCS "app_main.cpp"
     INCLUDE_DIRS "."
     REQUIRES
+        app_runtime
+        battery_voltage
         blackbox
         blackbox_service
-        battery_level
-        battery_voltage
         button_input
-        espnow_link
         espnow_remote
         HXC_NVS
         power_manager
         shell_command
         status_led
-        esp_system
-        esp_timer
-        log
 )
 
 set(SCRIPT_DIR "${CMAKE_SOURCE_DIR}/scripts")

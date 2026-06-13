@@ -23,12 +23,14 @@ namespace {
 
 constexpr gpio_num_t BUTTON_GPIO = GPIO_NUM_4;
 constexpr gpio_num_t USB_DETECT_GPIO = GPIO_NUM_5;
+// 深睡前将与当前唤醒无关的引脚统一切换为高阻，避免内部上下拉或输出保持
+// 形成额外漏电路径。列表包含板级改线和 USB/JTAG 相关引脚。
 constexpr gpio_num_t HIGH_IMPEDANCE_SLEEP_GPIOS[] = {
-    GPIO_NUM_2,  // Battery divider low side
-    GPIO_NUM_3,  // Battery ADC midpoint
-    GPIO_NUM_7,  // Same net as GPIO5 through the board rework
-    GPIO_NUM_8,  // External 10 kOhm pull-up
-    GPIO_NUM_9,  // BOOT, external 10 kOhm pull-up
+    GPIO_NUM_2,  // 电池分压下端控制
+    GPIO_NUM_3,  // 电池分压 ADC 中点
+    GPIO_NUM_7,  // 板级改线后与 USB 检测信号同网
+    GPIO_NUM_8,  // 外部 10 kOhm 上拉
+    GPIO_NUM_9,  // BOOT，外部 10 kOhm 上拉
     GPIO_NUM_18, // USB D-
     GPIO_NUM_19, // USB D+
 };

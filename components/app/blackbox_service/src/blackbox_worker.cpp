@@ -12,6 +12,7 @@ SemaphoreHandle_t drain_mutex;
 uint32_t persist_failures;
 
 esp_err_t drain_pending_logs_locked() {
+    // Flash 写入只在工作任务中执行，日志 Hook 只负责将定长事件压入 RAM 环形队列。
     esp_err_t result = ESP_OK;
     LogEvent event = {};
     while (pop_log_event(&event)) {

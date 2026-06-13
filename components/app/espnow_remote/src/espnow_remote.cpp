@@ -32,6 +32,7 @@ EventGroupHandle_t response_events;
 
 // 当前产品只允许一个同步开关请求和一个同步数据请求在途。
 // 发送完成回调与业务响应回调通过事件位唤醒发起请求的任务。
+// 两类事件必须分别等待：链路 ACK 只确认送达，业务响应才确认设备处理结果。
 uint32_t pending_switch_id;
 uint32_t pending_data_id;
 int64_t pending_switch_started_us;

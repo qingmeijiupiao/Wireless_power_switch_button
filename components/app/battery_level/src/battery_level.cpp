@@ -52,12 +52,14 @@ bool record_valid(const RtcRecord& record) {
 }
 
 bool sequence_newer(uint32_t candidate, uint32_t reference) {
+    // 有符号差值比较允许 32 位序号自然回绕，只要相邻有效记录跨度小于半周期。
     return static_cast<int32_t>(candidate - reference) > 0;
 }
 
 void restore_rtc_state() {
     initialized = true;
     const RtcRecord* newest = nullptr;
+    // 三个副本分别校验，选择序号最新的有效记录；冷启动时随机内容会被校验拒绝。
     for (const RtcRecord& record : rtc_records) {
         if (!record_valid(record)) {
             continue;
@@ -125,6 +127,7 @@ Status update(int voltage_mv, bool charging) {
     const uint8_t estimated_percent = estimate_percent(voltage_mv);
     uint8_t displayed_percent = estimated_percent;
     if (status_valid) {
+        // 抑制负载波动造成的电量跳变：放电只减不增，充电只增不减。
         displayed_percent = charging
                                 ? std::max(current_status.displayed_percent,
                                            estimated_percent)

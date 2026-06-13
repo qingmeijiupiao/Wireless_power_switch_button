@@ -32,7 +32,7 @@
 
 ```text
 BLACKBOX_DUMP_BEGIN persisted_records=... limit=... order=newest_first
-r=0 t_ms=97 n=3 [I][app_main] entering deep sleep
+r=0 t_ms=97 n=3 [I][AppRuntime] inputs idle, entering deep sleep
 BLACKBOX_DUMP_END emitted=... consumed_records=... remaining_records=...
 ```
 
@@ -42,6 +42,9 @@ BLACKBOX_DUMP_END emitted=... consumed_records=... remaining_records=...
 当前工程仅保存字符串，因此不重复输出 `type=STRING` 和 `text=`。
 
 控制字符会转义为 `\r`、`\n`、`\t` 和 `\\`。
+
+Shell 提示、命令结果和黑匣子导出内容统一使用 ASCII 英文。命令文档使用中文，
+但设备端不输出中文字符串。
 
 ## 版本命令
 

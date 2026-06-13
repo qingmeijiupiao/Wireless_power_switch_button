@@ -27,6 +27,7 @@ char clean_line[LOG_LINE_BUFFER_SIZE];
 LogEvent capture_event;
 
 bool is_internal_tag(const char* tag, size_t length) {
+    // 过滤黑匣子自身日志，防止“写日志产生新日志”的递归捕获。
     constexpr const char* INTERNAL_TAGS[] = {
         "Blackbox",
         "BlackBox",
@@ -42,8 +43,9 @@ bool is_internal_tag(const char* tag, size_t length) {
 }
 
 bool keep_info_tag(const char* tag, size_t length) {
+    // INFO 日志数量较大，只保留与启动、按键、无线和休眠直接相关的标签。
     constexpr const char* INFO_TAGS[] = {
-        "app_main",
+        "AppRuntime",
         "ButtonInput",
         "EspNowPairing",
         "EspNowRemote",
@@ -145,6 +147,8 @@ int blackbox_log_vprintf(const char* format, va_list args) {
         va_end(output_args);
     }
 
+    // ESP 日志 Hook 可能被不同任务并发调用。捕获区使用固定静态缓冲，重入时
+    // 保留原串口输出但跳过持久化，避免破坏正在格式化的记录。
     if (__atomic_test_and_set(&capture_busy, __ATOMIC_ACQUIRE)) {
         return output_length;
     }

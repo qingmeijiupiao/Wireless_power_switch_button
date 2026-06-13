@@ -102,6 +102,7 @@ bool calibration_record_valid(const CalibrationRecord& record) {
 }
 
 int apply_divider_scale(int divided_voltage_mv) {
+    // 校准任务可能更新倍率，采样任务通过同一互斥锁取得一致快照。
     xSemaphoreTake(state_mutex, portMAX_DELAY);
     const uint32_t scale_q16 = divider_scale_q16;
     xSemaphoreGive(state_mutex);
@@ -143,9 +144,8 @@ esp_err_t wait_until_stable() {
         }
         previous_mv = current_mv;
     }
-    // The timeout is a maximum settling delay, not a sampling failure.
-    // ADC noise may prevent four consecutive readings from meeting the
-    // threshold, so continue with the averaged acquisition after 30 ms.
+    // 超时仅表示已达到最大稳定等待时间，不代表采样失败。ADC 噪声可能使连续
+    // 四次读数无法满足阈值，因此 30 ms 后仍继续执行后续平均采样。
     return ESP_OK;
 }
 
@@ -169,6 +169,7 @@ esp_err_t read_average_divided_mv(int& divided_voltage_mv) {
 }
 
 void sampling_task(void*) {
+    // 分压路径只在采样窗口内导通，所有退出路径都必须恢复高阻以降低静态功耗。
     int voltage_mv = 0;
     esp_err_t result = enable_sample_path();
     if (result == ESP_OK) {
@@ -196,6 +197,7 @@ void sampling_task(void*) {
     completion_context = nullptr;
     xSemaphoreGive(state_mutex);
 
+    // 回调在采样任务上下文执行；先清空共享回调槽，允许回调完成后再次发起采样。
     if (callback != nullptr) {
         callback(result, voltage_mv, context);
     }
@@ -295,12 +297,12 @@ void calibration_monitor_task(void*) {
             new_scale_q16 <= MAX_DIVIDER_SCALE_Q16) {
             (void)save_calibration(new_scale_q16);
             ESP_LOGI(TAG,
-                     "满电校准完成: stable=%d mV scale_q16=%lu",
+                     "full-charge calibration complete: stable=%d mV scale_q16=%lu",
                      stable_voltage_mv,
                      static_cast<unsigned long>(new_scale_q16));
         } else {
             ESP_LOGW(TAG,
-                     "忽略越界校准结果: stable=%d mV scale_q16=%lu",
+                     "calibration result out of range: stable=%d mV scale_q16=%lu",
                      stable_voltage_mv,
                      static_cast<unsigned long>(new_scale_q16));
         }
@@ -429,6 +431,7 @@ esp_err_t wait_mv(int& voltage_mv, TickType_t ticks_to_wait) {
     if (xSemaphoreTake(completion, ticks_to_wait) != pdTRUE) {
         return ESP_ERR_TIMEOUT;
     }
+    // 二值信号量在读取后放回，使多个后续查询者都能取得最近一次采样结果。
     xSemaphoreGive(completion);
 
     xSemaphoreTake(state_mutex, portMAX_DELAY);

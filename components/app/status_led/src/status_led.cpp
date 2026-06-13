@@ -34,6 +34,7 @@ void pairing_task(void*) {
     bool phase = false;
     bool was_pairing = false;
     while (true) {
+        // 配对提示使用非阻塞加锁，按键确认和错误反馈拥有更高显示优先级。
         if (EspNowLink::is_pairing() && xSemaphoreTake(led_mutex, 0) == pdTRUE) {
             was_pairing = true;
             phase = !phase;
@@ -111,9 +112,8 @@ esp_err_t blink(uint32_t count, uint32_t on_ms, uint32_t off_ms) {
 esp_err_t prepare_for_sleep() {
     ESP_RETURN_ON_ERROR(off(), "StatusLed", "LED off failed");
 
-    // GPIO10 belongs to the VDDSDIO digital IO domain. Holding it as a high
-    // output can keep that domain powered during deep sleep. The LED is
-    // active-low, so a high-impedance pad also keeps it off without a hold.
+    // GPIO10 属于 VDDSDIO 数字 IO 电源域。深睡时保持高电平输出可能导致该
+    // 电源域无法关闭；低有效 LED 切换为高阻后仍保持熄灭，无需使用 GPIO hold。
     gpio_config_t config = {};
     config.pin_bit_mask = 1ULL << LED_GPIO;
     config.mode = GPIO_MODE_DISABLE;
