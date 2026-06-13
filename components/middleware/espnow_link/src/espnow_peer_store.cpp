@@ -42,7 +42,9 @@ PeerStore load_store() {
     // 长度匹配不代表内容有效，magic、版本、计数和校验任一失败都恢复空表。
     if (!valid_store(store)) {
         store = default_store();
-        stored_peers = store;
+        if (stored_peers.set(store) != ESP_OK) {
+            return default_store();
+        }
     }
     return store;
 }
@@ -74,8 +76,7 @@ esp_err_t save_peer(const EspNowLink::PeerConfig& peer, uint8_t channel) {
     slot->last_channel = channel;
     store.checksum = calculate_checksum(store);
     // HXC_NVS 以完整 blob 原子更新缓存和 Flash，不为每个 peer 动态创建 key。
-    stored_peers = store;
-    return ESP_OK;
+    return stored_peers.set(store);
 }
 
 esp_err_t update_peer_channel(const MacAddress& address, uint8_t channel) {
@@ -84,7 +85,10 @@ esp_err_t update_peer_channel(const MacAddress& address, uint8_t channel) {
         if (peer.used && memcmp(peer.mac, address.bytes, sizeof(peer.mac)) == 0) {
             peer.last_channel = channel;
             store.checksum = calculate_checksum(store);
-            stored_peers = store;
+            esp_err_t err = stored_peers.set(store);
+            if (err != ESP_OK) {
+                return err;
+            }
             PeerConfig config = {};
             memcpy(config.address.bytes, peer.mac, sizeof(peer.mac));
             memcpy(config.lmk, peer.lmk, sizeof(peer.lmk));
@@ -105,8 +109,7 @@ esp_err_t erase_peer(const EspNowLink::MacAddress& address) {
                 store.count--;
             }
             store.checksum = calculate_checksum(store);
-            stored_peers = store;
-            return ESP_OK;
+            return stored_peers.set(store);
         }
     }
     return ESP_ERR_NOT_FOUND;
@@ -114,8 +117,7 @@ esp_err_t erase_peer(const EspNowLink::MacAddress& address) {
 
 esp_err_t erase_all_peers() {
     PeerStore store = default_store();
-    stored_peers = store;
-    return ESP_OK;
+    return stored_peers.set(store);
 }
 
 size_t saved_peer_count() {

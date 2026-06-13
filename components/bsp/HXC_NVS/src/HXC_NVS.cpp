@@ -1,27 +1,53 @@
 #include "HXC_NVS.h"
 
+#include <new>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 namespace HXC {
 
 static const char* TAG = "HXC_NVS";
 
 // 初始化 NVS_Base 静态成员
-bool NVS_Base::is_setup = false;
+std::atomic_bool NVS_Base::is_setup = false;
 nvs_handle_t NVS_Base::_handle = 0;
 
-void NVS_Base::setup() {
-    if (is_setup) return;
-    if(nvs_flash_init() != ESP_OK) {
-        ESP_LOGE(TAG, "nvs_flash_init failed");
-        return;
+esp_err_t NVS_Base::setup() {
+    if (is_setup.load(std::memory_order_acquire)) {
+        return ESP_OK;
     }
-    // 打开 NVS
-    esp_err_t err = nvs_open(NVS_NAME, NVS_READWRITE, &_handle);
+
+    static SemaphoreHandle_t setup_mutex = xSemaphoreCreateMutex();
+    if (setup_mutex == nullptr) {
+        ESP_LOGE(TAG, "failed to create setup mutex");
+        return ESP_ERR_NO_MEM;
+    }
+    if (xSemaphoreTake(setup_mutex, portMAX_DELAY) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+    if (is_setup.load(std::memory_order_acquire)) {
+        xSemaphoreGive(setup_mutex);
+        return ESP_OK;
+    }
+
+    esp_err_t err = nvs_flash_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "nvs_flash_init failed: %s", esp_err_to_name(err));
+        xSemaphoreGive(setup_mutex);
+        return err;
+    }
+
+    err = nvs_open(NVS_NAME, NVS_READWRITE, &_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "nvs_open failed: %s", esp_err_to_name(err));
-        return;
+        xSemaphoreGive(setup_mutex);
+        return err;
     }
     ESP_LOGI(TAG, "nvs_open %s success", NVS_NAME);
-    is_setup = true;
+    is_setup.store(true, std::memory_order_release);
+    xSemaphoreGive(setup_mutex);
+    return ESP_OK;
 }
 
 // =========================================================
@@ -37,8 +63,11 @@ NVS_DATA<char*>::NVS_DATA(const char* _key, const char* default_value) : value(n
     
     // 深拷贝默认值
     if (default_value) {
-        this->value = new char[strlen(default_value) + 1];
-        strcpy(this->value, default_value);
+        const size_t length = strlen(default_value) + 1;
+        this->value = new (std::nothrow) char[length];
+        if (this->value != nullptr) {
+            memcpy(this->value, default_value, length);
+        }
     }
 }
 
@@ -50,23 +79,61 @@ NVS_DATA<char*>::~NVS_DATA() {
 }
 
 esp_err_t NVS_DATA<char*>::save() {
-    setup();
+    esp_err_t err = setup();
+    if (err != ESP_OK) {
+        return err;
+    }
     if (!value) return ESP_FAIL;
 
-    // ESP-IDF 存储字符串推荐直接使用 nvs_set_str
-    esp_err_t err = nvs_set_str(_handle, key, value);
+    err = nvs_set_str(_handle, key, value);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "nvs_set_str fail: %s %s", key, esp_err_to_name(err));
+        return err;
     }
     err = nvs_commit(_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "nvs_commit fail: %s %s", key, esp_err_to_name(err));
+        return err;
     }
-    return err;
+    is_read = true;
+    return ESP_OK;
+}
+
+esp_err_t NVS_DATA<char*>::set(const char* new_value) {
+    if (new_value == nullptr) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const size_t length = strlen(new_value) + 1;
+    char* replacement = new (std::nothrow) char[length];
+    if (replacement == nullptr) {
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(replacement, new_value, length);
+
+    esp_err_t err = setup();
+    if (err == ESP_OK) {
+        err = nvs_set_str(_handle, key, replacement);
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(_handle);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "persist string failed: %s %s", key, esp_err_to_name(err));
+        delete[] replacement;
+        return err;
+    }
+
+    delete[] value;
+    value = replacement;
+    is_read = true;
+    return ESP_OK;
 }
 
 char* NVS_DATA<char*>::read() {
-    setup();
+    if (setup() != ESP_OK) {
+        return value;
+    }
     if (is_read) return value;
 
     size_t datalen = 0;
@@ -78,7 +145,11 @@ char* NVS_DATA<char*>::read() {
         return value;
     }
 
-    char* arr = new char[datalen];
+    char* arr = new (std::nothrow) char[datalen];
+    if (arr == nullptr) {
+        ESP_LOGE(TAG, "KEY=%s allocation failed", key);
+        return value;
+    }
     err = nvs_get_str(_handle, key, arr, &datalen);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "KEY=%s NVS读取失败, 使用默认值", key);
@@ -96,16 +167,10 @@ char* NVS_DATA<char*>::read() {
 }
 
 NVS_DATA<char*>& NVS_DATA<char*>::operator=(const char* newValue) {
-    // 释放原有内存，重新分配
-    if (value) {
-        delete[] value;
-        value = nullptr;
+    const esp_err_t err = set(newValue);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "assignment persist failed: %s %s", key, esp_err_to_name(err));
     }
-    if (newValue) {
-        value = new char[strlen(newValue) + 1];
-        strcpy(value, newValue);
-    }
-    save();
     return *this;
 }
 

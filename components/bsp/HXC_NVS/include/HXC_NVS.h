@@ -6,6 +6,7 @@
 #ifndef HXC_NVS_H
 #define HXC_NVS_H
 
+#include <atomic>
 #include <cstring>
 #include <type_traits>
 #include "esp_err.h"
@@ -21,11 +22,10 @@ namespace HXC {
 // 基类，用于共享静态变量及 NVS 句柄
 class NVS_Base {
 public:
-    static void setup(); // 初始化函数
+    static esp_err_t setup();
 protected:
-    static bool is_setup;
+    static std::atomic_bool is_setup;
     static nvs_handle_t _handle;
-
 };
 
 // ---------------------------------------------------------
@@ -37,6 +37,8 @@ public:
     // 构造函数，初始化 key 和默认值
     NVS_DATA(const char* _key, Value_type default_value) {
         static_assert(!std::is_pointer<Value_type>::value, "NVS_DATA<Value_type>: Cannot use pointer type!");
+        static_assert(std::is_trivially_copyable<Value_type>::value,
+                      "NVS_DATA<Value_type>: Value_type must be trivially copyable");
         
         // NVS key 最大长度为 15 字节
         strncpy(this->key, _key, 15);
@@ -47,25 +49,50 @@ public:
         this->value = default_value;
     }
 
-    ~NVS_DATA() {}
-
-    // 保存数据到 NVS
     esp_err_t save() {
-        setup();
-        esp_err_t err = nvs_set_blob(_handle, key, (const void*)&value, sizeof(Value_type));
+        esp_err_t err = setup();
+        if (err != ESP_OK) {
+            return err;
+        }
+        err = nvs_set_blob(_handle, key, static_cast<const void*>(&value), sizeof(Value_type));
         if (err != ESP_OK) {
             ESP_LOGE("HXC_NVS", "nvs_set_blob fail: %s %s", key, esp_err_to_name(err));
+            return err;
         }
         err = nvs_commit(_handle);
         if (err != ESP_OK) {
             ESP_LOGE("HXC_NVS", "nvs_commit fail: %s %s", key, esp_err_to_name(err));
+            return err;
         }
-        return err;
+        is_read = true;
+        return ESP_OK;
+    }
+
+    esp_err_t set(const Value_type& new_value) {
+        esp_err_t err = setup();
+        if (err != ESP_OK) {
+            return err;
+        }
+        err = nvs_set_blob(_handle, key, static_cast<const void*>(&new_value), sizeof(Value_type));
+        if (err != ESP_OK) {
+            ESP_LOGE("HXC_NVS", "nvs_set_blob fail: %s %s", key, esp_err_to_name(err));
+            return err;
+        }
+        err = nvs_commit(_handle);
+        if (err != ESP_OK) {
+            ESP_LOGE("HXC_NVS", "nvs_commit fail: %s %s", key, esp_err_to_name(err));
+            return err;
+        }
+        value = new_value;
+        is_read = true;
+        return ESP_OK;
     }
 
     // 从 NVS 读取数据
     Value_type read() {
-        setup();
+        if (setup() != ESP_OK) {
+            return value;
+        }
         if (is_read) return value;
         
         size_t datalen = 0;
@@ -88,8 +115,10 @@ public:
 
     // 重载赋值运算符
     NVS_DATA& operator=(const Value_type& newValue) {
-        value = newValue;
-        save();
+        const esp_err_t err = set(newValue);
+        if (err != ESP_OK) {
+            ESP_LOGE("HXC_NVS", "assignment persist failed: %s %s", key, esp_err_to_name(err));
+        }
         return *this;
     }
 
@@ -113,6 +142,7 @@ public:
     NVS_DATA(const char* _key, const char* default_value);
     ~NVS_DATA();
     esp_err_t save();
+    esp_err_t set(const char* new_value);
     char* read();
     NVS_DATA& operator=(const char* newValue);
     operator char*();

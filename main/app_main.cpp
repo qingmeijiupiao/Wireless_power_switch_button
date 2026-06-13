@@ -136,7 +136,7 @@ extern "C" void app_main(void) {
         ESP_ERROR_CHECK(ButtonInput::start_wakeup_tracking());
     }
     ESP_ERROR_CHECK(Blackbox::init());
-    HXC::NVS_Base::setup();
+    ESP_ERROR_CHECK(HXC::NVS_Base::setup());
     ESP_ERROR_CHECK(BlackboxService::init());
     ESP_ERROR_CHECK(BatteryVoltage::init());
 

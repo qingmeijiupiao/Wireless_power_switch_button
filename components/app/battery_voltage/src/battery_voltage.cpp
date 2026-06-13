@@ -222,7 +222,11 @@ esp_err_t save_calibration(uint32_t new_scale_q16) {
     record.divider_scale_q16 = new_scale_q16;
     record.checksum = calibration_checksum(record);
     xSemaphoreTake(state_mutex, portMAX_DELAY);
-    stored_calibration = record;
+    const esp_err_t persist_result = stored_calibration.set(record);
+    if (persist_result != ESP_OK) {
+        xSemaphoreGive(state_mutex);
+        return persist_result;
+    }
     divider_scale_q16 = new_scale_q16;
     stored_calibration_valid = true;
     xSemaphoreGive(state_mutex);
@@ -500,7 +504,11 @@ esp_err_t reset_calibration() {
     // 写入无效校验值表示显式恢复出厂倍率，重启后仍显示为“未校准”。
     record.checksum = 0;
     xSemaphoreTake(state_mutex, portMAX_DELAY);
-    stored_calibration = record;
+    const esp_err_t persist_result = stored_calibration.set(record);
+    if (persist_result != ESP_OK) {
+        xSemaphoreGive(state_mutex);
+        return persist_result;
+    }
     divider_scale_q16 = DEFAULT_DIVIDER_SCALE_Q16;
     stored_calibration_valid = false;
     calibration_stable_samples = 0;

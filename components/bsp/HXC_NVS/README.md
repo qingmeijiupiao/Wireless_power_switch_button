@@ -6,8 +6,10 @@
 
 - **模板泛型**：`NVS_DATA<T>` 支持任意可平凡拷贝的基础类型（`int`、`float`、`struct` 等），以 `nvs_set_blob` 统一存储
 - **`char*` 特化**：对字符串类型单独特化，使用 `nvs_set_str` / `nvs_get_str`，内部深拷贝管理堆内存
-- **运算符重载**：`operator=` 赋值自动持久化，`operator T()` 读取自动从 NVS 加载，消除手动 API 调用
-- **懒初始化**：NVS 句柄在首次读写时通过 `setup()` 延迟打开，无需显式初始化调用
+- **错误可传递**：`setup()`、`set()` 和 `save()` 返回原始 `esp_err_t`
+- **可靠提交**：`nvs_set_*` 和 `nvs_commit` 都成功后才更新 RAM 缓存
+- **并发初始化**：原子完成标志和 FreeRTOS Mutex 防止重复初始化
+- **兼容运算符**：保留 `operator=`，需要确认写入结果时应使用 `set()`
 - **单次读取缓存**：`is_read` 标志避免重复访问 Flash，延长使用寿命
 - **零指针安全**：`static_assert` 编译期禁止指针类型误用；key 超长自动截断并告警
 
@@ -111,9 +113,9 @@ void app_main() {
     int cnt = boot_count;
     ESP_LOGI("APP", "boot count = %d", cnt);
 
-    // 写入：赋值即持久化
-    boot_count = cnt + 1;
-    calibration = 1.05f;
+    // 需要确认持久化结果时使用 set()
+    ESP_ERROR_CHECK(boot_count.set(cnt + 1));
+    ESP_ERROR_CHECK(calibration.set(1.05f));
 }
 ```
 
@@ -150,6 +152,8 @@ void app_main() {
 | 方法 / 运算符 | 说明 |
 |---|---|
 | `NVS_DATA(key, default)` | 构造，`key` 最长 15 字节，超长截断并 log error |
+| `setup()` | 初始化 NVS Flash 并打开共享命名空间 |
+| `set(newValue)` | 写入并 commit，成功后才更新缓存 |
 | `save()` | 将当前 `value` 写入 NVS 并 commit |
 | `read()` | 从 NVS 读取；若 key 不存在返回默认值；首次读取后缓存 |
 | `operator=(newValue)` | 赋值并自动 `save()` |
@@ -161,6 +165,7 @@ void app_main() {
 
 **注意事项**：
 
-- `NVS_Base::setup()` 内部调用 `nvs_flash_init()`，若项目其他模块已初始化 NVS Flash，需注意重复调用的返回值处理
+- 启动阶段应检查 `NVS_Base::setup()` 的返回值
+- 配对、校准等关键配置应使用 `set()` 并检查返回值
 - `char*` 特化版本内部通过 `new[]` / `delete[]` 管理堆内存，赋值操作会释放旧缓冲区
 - 所有 `NVS_DATA` 实例共享同一 NVS 命名空间（`NVS_NAME`），不同实例通过 `key` 区分
