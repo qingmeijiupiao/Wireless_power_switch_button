@@ -56,7 +56,8 @@ scripts/                      构建后固件合并
 | `app0` | `0x10000` | 1 MB | 单 factory 应用 |
 | `blackbox` | `0x110000` | 3008 KB | 循环日志分区 |
 
-合并固件不包含 `blackbox` 分区，升级不会主动覆盖历史日志。
+合并固件不包含 `blackbox` 分区，因此不会覆盖历史日志；但其 `0x0` 至
+APP 末尾之间的空白区域会写入 `0xFF`，所以会清除 `nvs` 分区。
 
 ## 组件文档
 
@@ -85,7 +86,7 @@ USB 模式下执行 `version` 可查询固件版本和编译时间。
 执行 `battery status` 可查询校准后电压、曲线估算电量、方向约束后的显示
 电量、RTC 恢复状态和满电校准进度。
 
-## 构建
+## 构建与本地烧录
 
 ```powershell
 idf.py set-target esp32c3
@@ -96,3 +97,55 @@ idf.py build
 
 - `build/Wireless_power_switch_button.bin`
 - `Wireless_power_switch_button_merged.bin`
+
+### APP 固件
+
+APP 固件只写入 `app0` 分区，适合 bootloader 和分区表没有变化的日常升级：
+
+```powershell
+esptool.py --chip esp32c3 write_flash 0x10000 build/Wireless_power_switch_button.bin
+```
+
+APP 烧录不会覆盖 `0x9000-0xEFFF` 的 NVS，配对、校准和业务配置会保留。
+button 没有 OTA 功能，APP 固件同样需要通过 USB/串口手动烧录。
+
+### merged 固件
+
+merged 固件包含 bootloader、分区表和 APP，适合首次烧录、故障恢复，以及
+bootloader 或分区布局发生变化的版本：
+
+```powershell
+esptool.py --chip esp32c3 write_flash 0x0 Wireless_power_switch_button_merged.bin
+```
+
+merged 固件会清除 NVS 中的配对、校准和业务配置，但不会覆盖
+`0x110000` 开始的 `blackbox` 分区。执行整片擦除仍会清除所有分区。
+
+## 最新固件在线烧录
+
+下面两个链接始终读取 `firmware-dist` 分支上的最新发布配置。ESP Launchpad
+需要支持 Web Serial 的 Chromium 系浏览器，并通过 USB/串口连接设备。
+
+| 入口 | 起始地址 | 说明 |
+|------|----------|------|
+| [APP 固件在线烧录](https://espressif.github.io/esp-launchpad/?flashConfigURL=https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@firmware-dist/launchpad/latest.toml&app=Wireless_power_switch_button_app&exact=true) | `0x10000` | 保留 NVS；仅用于 bootloader 和分区表未变化的常规升级 |
+| [merged 固件在线烧录](https://espressif.github.io/esp-launchpad/?flashConfigURL=https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@firmware-dist/launchpad/latest.toml&app=Wireless_power_switch_button_merged&exact=true) | `0x0` | 完整安装或恢复；会清除 NVS |
+
+固定的最新固件下载地址：
+
+- [下载最新 APP 固件](https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@firmware-dist/latest/app.bin)
+- [下载最新 merged 固件](https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@firmware-dist/latest/merged.bin)
+- [查看最新版本元数据](https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@firmware-dist/last.toml)
+
+> 不确定时：已有正常运行设备优先使用 APP；首次烧录或发布说明明确要求完整
+> 更新时使用 merged。不要把 APP 固件写到 `0x0`，也不要把 merged 固件写到
+> `0x10000`。
+
+## CI/CD
+
+- CI：推送或提交 PR 到 `main` 时使用 ESP-IDF v6.0 编译 ESP32-C3 固件。
+- CD：推送 `vMAJOR.MINOR` 或 `vMAJOR.MINOR.0` 标签时构建正式版本。
+- Release 同时发布 APP、merged、SHA256 校验文件和 Launchpad 配置。
+- `firmware-dist` 保存历史固件，并维护 README 使用的固定最新链接。
+- 发布流水线会验证 APP 大小、`0x10000` 对齐、merged 的 NVS 空白区和两个
+  Launchpad `offset`，校验失败时不会创建 Release。
