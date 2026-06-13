@@ -1,53 +1,27 @@
-name: Wireless Power Switch Button CI/CD
+name: Wireless Power Switch Button CI
 
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  ci:
-    if: "!startsWith(github.ref, 'refs/tags/')"
+  build:
+    name: ESP-IDF Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: espressif/esp-idf-ci-action@v1
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build firmware
+        uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0
           target: esp32c3
-          path: "./"
-
-  cd:
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Extract version
-        id: version
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          echo "major=${TAG%%.*}" >> "$GITHUB_OUTPUT"
-          echo "minor=$(echo "$TAG" | cut -d. -f2)" >> "$GITHUB_OUTPUT"
-          echo "full=${TAG%%.*}.$(echo "$TAG" | cut -d. -f2).0" >> "$GITHUB_OUTPUT"
-      - uses: espressif/esp-idf-ci-action@v1
-        with:
-          esp_idf_version: v6.0
-          target: esp32c3
-          path: "./"
-          command: idf.py -DVERSION_MAJOR=${{ steps.version.outputs.major }} -DVERSION_MINOR=${{ steps.version.outputs.minor }} -DVERSION_PATCH=0 build
-      - name: Rename firmware
-        run: |
-          VERSION="${{ steps.version.outputs.full }}"
-          cp build/Wireless_power_switch_button.bin "Wireless_power_switch_button_app_v${VERSION}.bin"
-          cp Wireless_power_switch_button_merged.bin "Wireless_power_switch_button_merged_v${VERSION}.bin"
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            Wireless_power_switch_button_app_v*.bin
-            Wireless_power_switch_button_merged_v*.bin
-
+          path: ./
