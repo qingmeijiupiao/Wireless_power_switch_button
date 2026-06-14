@@ -98,6 +98,7 @@ jobs:
 
       - name: Initialize firmware distribution branch
         if: steps.dist_checkout.outcome == 'failure'
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -114,6 +115,7 @@ jobs:
 
       - name: Publish firmware distribution
         id: distribution
+        continue-on-error: true
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.full }}
@@ -256,15 +258,23 @@ jobs:
           |------|----------|------|
           | \`*_app_v*.bin\` | \`0x10000\` | 只更新APP，保留NVS配对、校准和业务配置。 |
           | \`*_merged_v*.bin\` | \`0x0\` | 首次烧录或完整恢复；会清除NVS数据。 |
-
-          - [APP固件在线烧录](${APP_LAUNCHPAD})
-          - [merged固件在线烧录](${MERGED_LAUNCHPAD})
+          EOF
+            if [[ -n "${CONFIG_URL}" ]]; then
+              echo
+              echo "- [APP固件在线烧录](${APP_LAUNCHPAD})"
+              echo "- [merged固件在线烧录](${MERGED_LAUNCHPAD})"
+            else
+              echo
+              echo "本次发布未生成在线烧录配置，请下载固件后通过USB/串口手动烧录。"
+            fi
+            cat <<'EOF'
 
           button不支持OTA。两个固件均通过USB/串口手动烧录。只有bootloader和分区表未变化时才能使用APP固件。
           EOF
           } > release_notes.md
 
       - name: Create GitHub Release
+        if: steps.distribution.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -272,4 +282,14 @@ jobs:
             ${{ steps.artifacts.outputs.merged_name }}
             SHA256SUMS
             ${{ steps.distribution.outputs.config_path }}
+          body_path: release_notes.md
+
+      - name: Create GitHub Release without distribution metadata
+        if: steps.distribution.outcome != 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.artifacts.outputs.app_name }}
+            ${{ steps.artifacts.outputs.merged_name }}
+            SHA256SUMS
           body_path: release_notes.md
