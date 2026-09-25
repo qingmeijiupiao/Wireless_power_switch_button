@@ -16,6 +16,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "wifi_manager.h"
 
@@ -29,6 +30,15 @@ constexpr EventBits_t SWITCH_TRANSPORT_BIT = BIT2;
 constexpr EventBits_t DATA_TRANSPORT_BIT = BIT3;
 
 EventGroupHandle_t response_events;
+
+// 控制与数据请求可能并发，而底层信道恢复是单实例流程。这里用互斥锁把
+// ensure_peer_channel() 串行化，避免并发提交时底层返回 ESP_ERR_INVALID_STATE
+// 直接导致一次操作失败。
+SemaphoreHandle_t channel_check_mutex;
+
+// 最近一次业务响应结果，供调用方在等待结束后读取。
+EspNowService::SwitchResult* pending_switch_result_out;
+bool* pending_switch_output_out;
 
 // 当前产品只允许一个同步开关请求和一个同步数据请求在途。
 // 发送完成回调与业务响应回调通过事件位唤醒发起请求的任务。
@@ -134,6 +144,12 @@ void switch_response(const EspNowLink::MacAddress& source,
                                   result_name(result), output_on ? 1U : 0U,
                                   static_cast<long long>(elapsed_ms));
     if (pending) {
+        if (pending_switch_result_out != nullptr) {
+            *pending_switch_result_out = result;
+        }
+        if (pending_switch_output_out != nullptr) {
+            *pending_switch_output_out = output_on;
+        }
         xEventGroupSetBits(response_events, SWITCH_RESPONSE_BIT);
     }
 }
@@ -175,16 +191,27 @@ void data_response(const EspNowLink::MacAddress& source,
 
 /**
  * @brief 使用已保存 peer 的 LMK 探测当前信道，必要时触发加密信道扫描
- * @note recover_peer_channel() 只提交事件，本函数等待配对任务完成恢复流程。
+ * @note 控制与数据请求会并发调用本函数，因此整个流程用 channel_check_mutex 串行化。
+ *       如果底层已经在恢复（例如配对任务触发），则等待其结束而不是直接判失败。
  */
 esp_err_t ensure_peer_channel(const EspNowLink::MacAddress& peer) {
+    if (channel_check_mutex == nullptr ||
+        xSemaphoreTake(channel_check_mutex, portMAX_DELAY) != pdTRUE) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
     const int64_t started_us = esp_timer_get_time();
     const uint16_t timeout_ms = EspNowLink::get_channel_probe_timeout_ms(peer);
     const esp_err_t ret = EspNowLink::recover_peer_channel(peer);
-    if (ret != ESP_OK) {
+    if (ret == ESP_ERR_INVALID_STATE && EspNowLink::is_recovering_channel()) {
+        // 已有恢复在途，等待它结束即可，避免把并发误判为失败。
+        printf("[channel-check] join=in_flight\n");
+    } else if (ret != ESP_OK) {
         printf("[channel-check] submit=%s\n", esp_err_to_name(ret));
+        xSemaphoreGive(channel_check_mutex);
         return ret;
     }
+
     while (EspNowLink::is_recovering_channel()) {
         vTaskDelay(pdMS_TO_TICKS(2));
     }
@@ -192,6 +219,7 @@ esp_err_t ensure_peer_channel(const EspNowLink::MacAddress& peer) {
     printf("[channel-check] result=%s probe_timeout_ms=%u elapsed_ms=%lld\n",
            esp_err_to_name(result), timeout_ms,
            static_cast<long long>((esp_timer_get_time() - started_us) / 1000));
+    xSemaphoreGive(channel_check_mutex);
     return result;
 }
 
@@ -200,6 +228,10 @@ esp_err_t ensure_peer_channel(const EspNowLink::MacAddress& peer) {
 esp_err_t init() {
     response_events = xEventGroupCreate();
     if (response_events == nullptr) {
+        return ESP_ERR_NO_MEM;
+    }
+    channel_check_mutex = xSemaphoreCreateMutex();
+    if (channel_check_mutex == nullptr) {
         return ESP_ERR_NO_MEM;
     }
     ESP_RETURN_ON_ERROR(WiFiManager::instance().init(), TAG, "WiFi init failed");
@@ -211,7 +243,9 @@ esp_err_t init() {
 
 esp_err_t send_switch(EspNowService::SwitchAction action,
                       bool wait_response,
-                      bool check_channel) {
+                      bool check_channel,
+                      EspNowService::SwitchResult* out_result,
+                      bool* out_output) {
     EspNowLink::MacAddress peer = {};
     if (!controller_peer(&peer)) {
         printf("[switch] no paired controller; run 'espnow pair'\n");
@@ -220,6 +254,9 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
     if (check_channel) {
         ESP_RETURN_ON_ERROR(ensure_peer_channel(peer), TAG, "channel recovery failed");
     }
+
+    pending_switch_result_out = wait_response ? out_result : nullptr;
+    pending_switch_output_out = wait_response ? out_output : nullptr;
 
     xEventGroupClearBits(response_events, SWITCH_RESPONSE_BIT | SWITCH_TRANSPORT_BIT);
     pending_switch_id = 0;
@@ -232,9 +269,13 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
     printf(" action=%s request_id=%lu submit=%s\n", action_name(action),
            static_cast<unsigned long>(pending_switch_id), esp_err_to_name(ret));
     if (ret != ESP_OK) {
+        pending_switch_result_out = nullptr;
+        pending_switch_output_out = nullptr;
         return ret;
     }
     if (!wait_response) {
+        pending_switch_result_out = nullptr;
+        pending_switch_output_out = nullptr;
         send_battery_after_control(peer);
         return ESP_OK;
     }
@@ -246,6 +287,8 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
     if ((bits & SWITCH_TRANSPORT_BIT) == 0 ||
         switch_transport_result != EspNowLink::SendResult::ACKNOWLEDGED) {
         pending_switch_id = 0;
+        pending_switch_result_out = nullptr;
+        pending_switch_output_out = nullptr;
         send_battery_after_control(peer);
         return ESP_ERR_TIMEOUT;
     }
@@ -258,6 +301,8 @@ esp_err_t send_switch(EspNowService::SwitchAction action,
         xEventGroupClearBits(response_events, SWITCH_RESPONSE_BIT);
     }
     pending_switch_id = 0;
+    pending_switch_result_out = nullptr;
+    pending_switch_output_out = nullptr;
     const esp_err_t result =
         (bits & SWITCH_RESPONSE_BIT) != 0 ? ESP_OK : ESP_ERR_TIMEOUT;
     send_battery_after_control(peer);

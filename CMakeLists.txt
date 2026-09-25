@@ -13,7 +13,7 @@ set(EXTRA_COMPONENT_DIRS
 # MAJOR.MINOR is maintained by developers. PATCH=99 identifies local builds;
 # the release pipeline overrides it with PATCH=0.
 set(VERSION_MAJOR 0 CACHE STRING "Major version")
-set(VERSION_MINOR 1 CACHE STRING "Minor version")
+set(VERSION_MINOR 2 CACHE STRING "Minor version")
 set(VERSION_PATCH 99 CACHE STRING "Patch version (99=local, 0=release)")
 set(PROJECT_VER "v${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 

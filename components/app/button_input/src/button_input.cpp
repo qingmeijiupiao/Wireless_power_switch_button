@@ -28,6 +28,7 @@ constexpr gpio_num_t BUTTON_GPIO = GPIO_NUM_4;
 constexpr uint32_t POLL_MS = 10;
 constexpr uint32_t TRIGGER_BLINK_MS = 100;
 constexpr uint32_t FAILURE_BLINK_MS = 250;
+constexpr uint32_t REJECTED_BLINK_MS = 80;
 
 std::atomic_bool busy;
 std::atomic_bool radio_ready;
@@ -50,7 +51,10 @@ void command_task(void* arg) {
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
-    const esp_err_t ret = EspNowRemote::send_switch(context.action);
+    EspNowService::SwitchResult context_result = EspNowService::SwitchResult::INTERNAL_ERROR;
+    bool context_output = false;
+    const esp_err_t ret = EspNowRemote::send_switch(
+        context.action, true, true, &context_result, &context_output);
     const int64_t elapsed_ms = (esp_timer_get_time() - started_us) / 1000;
     ESP_LOGI(TAG, "remote command action=%s result=%s elapsed_ms=%lld",
              context.action == EspNowService::SwitchAction::ON ? "on" : "off",
@@ -59,6 +63,11 @@ void command_task(void* arg) {
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "remote command failed: %s", esp_err_to_name(ret));
         StatusLed::blink(2, FAILURE_BLINK_MS, FAILURE_BLINK_MS);
+    } else if (context_result != EspNowService::SwitchResult::OK) {
+        // 链路送达但对端业务拒绝执行，用更快的双闪区分于通信失败。
+        ESP_LOGW(TAG, "remote command rejected: result=%u output=%u",
+                 static_cast<unsigned>(context_result), context_output ? 1U : 0U);
+        StatusLed::blink(2, REJECTED_BLINK_MS, REJECTED_BLINK_MS);
     }
     xTaskNotifyGive(context.owner);
     vTaskDelete(nullptr);

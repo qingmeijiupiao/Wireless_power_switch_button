@@ -31,13 +31,19 @@ esp_err_t init();
  * @param action OFF、ON 或 TOGGLE
  * @param wait_response true 等待链路 ACK 和业务响应，false 仅提交发送
  * @param check_channel true 发送前执行加密信道探测与恢复
- * @return ESP_OK 请求成功，ESP_ERR_NOT_FOUND 未找到控制器，
- *         ESP_ERR_TIMEOUT 未收到 ACK 或业务响应，其他错误来自底层链路
+ * @param out_result 可选，返回对端业务层执行结果（仅 wait_response=true 时有效）
+ * @param out_output 可选，返回对端执行后的实际输出状态（仅 wait_response=true 时有效）
+ * @return ESP_OK 收到链路 ACK 且收到业务响应（业务结果可能为 REJECTED），
+ *         ESP_ERR_NOT_FOUND 未找到控制器，ESP_ERR_TIMEOUT 未收到 ACK 或业务响应，
+ *         其他错误来自底层链路
  * @note 等待模式会阻塞当前调用任务，不应从 WiFi 或 ESP-NOW 回调中调用。
+ * @note 收到业务响应即返回 ESP_OK，即使对端拒绝执行；调用方需通过 out_result 判断。
  */
 esp_err_t send_switch(EspNowService::SwitchAction action,
                       bool wait_response = true,
-                      bool check_channel = true);
+                      bool check_channel = true,
+                      EspNowService::SwitchResult* out_result = nullptr,
+                      bool* out_output = nullptr);
 
 /**
  * @brief 请求已配对控制器返回实时测量数据
