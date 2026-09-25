@@ -232,7 +232,7 @@ Shell 命令集中注册在 `components/app/shell_command/`。底层控制台初
 | 电源管理 | [power_manager](components/app/power_manager/README.md) |
 | Shell 命令 | [shell_command](components/app/shell_command/README.md) |
 | 黑匣子服务 | [blackbox_service](components/app/blackbox_service/README.md) |
-| 黑匣子存储 | [blackbox](https://github.com/qingmeijiupiao/wireless-power-components/blob/86e167a755eec29b38ce2f469fb3b6ba6a4fd0bb/components/middleware/blackbox/README.md) |
+| 黑匣子存储 | [blackbox](https://github.com/qingmeijiupiao/wireless-power-components/blob/3603981a47e4f29e3602806d900491508b692467/components/middleware/blackbox/README.md) |
 
 ## 构建
 
