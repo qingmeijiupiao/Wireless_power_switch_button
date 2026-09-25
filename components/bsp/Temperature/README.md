@@ -40,6 +40,6 @@ float chip_temp = chip_sensor.getTemperature(); // 摄氏度
 
 ## 环境与依赖
 
-- 硬件：TMP235 连接 ADC 通道；ESP32-C3 片内温度传感器
+- 硬件：ESP32-C3 片内温度传感器
 - ESP-IDF v6.0+
-- 组件依赖：`ADC`、`esp_driver_tsens`、`esp_hal_ana_conv`
+- 组件依赖：`esp_driver_tsens`、`esp_hal_ana_conv`

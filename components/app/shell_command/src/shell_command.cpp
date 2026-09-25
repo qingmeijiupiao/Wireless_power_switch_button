@@ -57,6 +57,7 @@ void print_escaped_text(const char* text) {
 esp_err_t init() {
     auto& shell = Shell::instance();
     ESP_RETURN_ON_ERROR(shell.init(), "ShellCommand", "shell init failed");
+    shell.set_prompt("ESP@wireless_power_switch_button> ");
 
     /**
      * @brief version - 获取固件版本号与编译时间
