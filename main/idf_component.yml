@@ -46,3 +46,29 @@ dependencies:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/bsp/shell
     version: 79d506e686ec743ad961ab76c732af96313db54a
+
+  # 两个遥控工程使用同一固定版本的公共组件。
+  battery_level:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/middleware/battery_level
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  blackbox_service:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/middleware/blackbox_service
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_remote:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/product/espnow_remote
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_service_remote:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/product/espnow_service_remote
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_link:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/middleware/espnow_link
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  diagnostic_log:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/common/diagnostic_log
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454

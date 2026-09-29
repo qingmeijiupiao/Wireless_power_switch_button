@@ -125,8 +125,7 @@ flowchart LR
 - `middleware` 负责可靠传输、配对和日志等可复用机制，不决定按键含义。
 - `bsp` 封装 ESP-IDF 外设和平台接口，不依赖产品业务。
 
-`espnow_service` 和 `espnow_link` 在遥控器与功率计仓库中分别维护。协议或链路发生
-不兼容修改时，需要同时检查两端实现并进行联调；日常修改不要求两个仓库逐提交同步。
+遥控端使用公共仓库的 `espnow_service_remote`，功率计保留接收端 `espnow_service`。`espnow_link` 统一来自公共仓库。协议或链路发生不兼容修改时，需要同时检查两端并联调。
 
 ## 关键组件如何协作
 
@@ -191,16 +190,16 @@ Flash 循环分区，用于排查偶发唤醒、通信超时和电量异常。�
 ### 接入不同控制目标
 
 如果仍使用当前 Wireless Power 协议，优先在
-`components/app/espnow_remote/` 封装新的调用方式。
+`https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_remote/` 封装新的调用方式。
 
 如果消息类型和数据字段都要改变，则修改：
 
-- `components/app/espnow_service/`：业务消息和编解码；
+- `https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_service_remote/`：业务消息和编解码；
 - 对端工程中的对应业务协议实现；
 - 必要时再扩展 Shell 测试命令。
 
 只有需要改变 ACK、重传、配对或 peer 管理机制时，才应修改
-`components/middleware/espnow_link/`。
+`https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/middleware/espnow_link/`。
 
 ### 移植到其他板卡
 
@@ -224,14 +223,14 @@ Shell 命令集中注册在 `components/app/shell_command/`。底层控制台初
 | 模块 | 文档 |
 |------|------|
 | 启动辅助工具 | [app_runtime](components/app/app_runtime/README.md) |
-| 遥控端应用 | [espnow_remote 公共接口](components/app/espnow_remote/include/espnow_remote.h) |
-| 产品业务协议 | [espnow_service](components/app/espnow_service/README.md) |
-| ESP-NOW 链路 | [espnow_link](components/middleware/espnow_link/README.md) |
+| 遥控端应用 | [espnow_remote 公共接口](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_remote/include/espnow_remote.h) |
+| 产品业务协议 | [espnow_service](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_service_remote/README.md) |
+| ESP-NOW 链路 | [espnow_link](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/middleware/espnow_link/README.md) |
 | 电池采样 | [battery_voltage](components/app/battery_voltage/README.md) |
-| 电量估算 | [battery_level](components/app/battery_level/README.md) |
+| 电量估算 | [battery_level](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/middleware/battery_level/README.md) |
 | 电源管理 | [power_manager](components/app/power_manager/README.md) |
 | Shell 命令 | [shell_command](components/app/shell_command/README.md) |
-| 黑匣子服务 | [blackbox_service](components/app/blackbox_service/README.md) |
+| 黑匣子服务 | [blackbox_service](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/middleware/blackbox_service/README.md) |
 | 黑匣子存储 | [blackbox](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/middleware/blackbox/README.md) |
 
 ## 构建
@@ -303,3 +302,10 @@ ESP Launchpad 需要使用支持 Web Serial 的 Chromium 系浏览器。
 
 推送或提交 PR 到 `main` 时，CI 会检查工程能否正常构建。推送发布标签后，CD 会生成
 APP、merged、SHA256 校验文件和 Launchpad 配置，并更新 `firmware-dist` 分支。
+
+## 本轮组件迁移
+
+电量估算、日志捕获、遥控客户端和遥控端协议已由按钮/急停共用；原本地目录已经移除。
+上文架构图中的这些组件为逻辑模块，实际源码位于`wireless-power-components` 公共仓库，引用见 `main/idf_component.yml`。
+公共组件已发布，并固定到 `15525b7a2d3cc0694bbc0b65dcac8335cd73d454`，构建时由 Component Manager 自动获取，不要求相邻仓库。
+按钮 GPIO、手势、休眠及电池采样仍在本工程。INFO 日志标签由 `app_main` 显式传入，原捕获范围保持不变。

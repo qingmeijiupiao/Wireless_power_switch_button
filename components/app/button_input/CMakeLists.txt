@@ -4,7 +4,7 @@ idf_component_register(
     REQUIRES
         esp_driver_gpio
         espnow_remote
-        espnow_service
+        espnow_service_remote
         freertos
         log
         power_manager

@@ -2671,6 +2671,12 @@ CONFIG_VFS_SEMIHOSTFS_MAX_MOUNT_POINTS=1
 # default:
 CONFIG_VFS_INITIALIZE_DEV_NULL=y
 # end of Virtual file system
+
+#
+# ESP-NOW reliable link
+#
+CONFIG_ESPNOW_LINK_TASK_STACK_SIZE=5120
+# end of ESP-NOW reliable link
 # end of Component config
 
 # default:

@@ -7,7 +7,7 @@ idf_component_register(
         blackbox
         blackbox_service
         espnow_remote
-        espnow_service
+        espnow_service_remote
         power_manager
         shell
         status_led

@@ -31,6 +31,14 @@ dependencies:
       path: components/bsp/PWM
       type: git
     version: 79d506e686ec743ad961ab76c732af96313db54a
+  battery_level:
+    component_hash: 76efe9474b7d885ac30855fd38495a3f5c18562ec459c3be7c9f0888fc467848
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/battery_level
+      type: git
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
   blackbox:
     component_hash: ca7085d7c46e6114df597f9716077d670b3ffefc7f7a1f892854a5cfa634d203
     dependencies: []
@@ -39,6 +47,14 @@ dependencies:
       path: components/middleware/blackbox
       type: git
     version: 79d506e686ec743ad961ab76c732af96313db54a
+  blackbox_service:
+    component_hash: 6e9c827e59d0a8d54092bbda4b1ba1efb0f51ca6d21b290ead607bde58c1195b
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/blackbox_service
+      type: git
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
   circular_flash_buffer:
     component_hash: 1bd214cc375b88dbe74a4fbfa841f9626a05d49f5d2f2d4b99d15f6394a0b931
     dependencies: []
@@ -47,6 +63,38 @@ dependencies:
       path: components/bsp/circular_flash_buffer
       type: git
     version: 79d506e686ec743ad961ab76c732af96313db54a
+  diagnostic_log:
+    component_hash: 97f3047c739307b12a339d987de182a35f0696f61bef67020885f9d7f31f3146
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/common/diagnostic_log
+      type: git
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_link:
+    component_hash: 0d21817b7aa02a7f925a2e4fc7fa6539f42c82e100de77294d81df4a82026f20
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/espnow_link
+      type: git
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_remote:
+    component_hash: 39b9469d5e4367a4459900e71631dfb43fa385c065fb1bcb14937a235c3c6009
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/product/espnow_remote
+      type: git
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_service_remote:
+    component_hash: 2b28339c6e5f2877fc87b13fa9ded2a831d71dc7469b004d96411fe347cb4f6f
+    dependencies: []
+    source:
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/product/espnow_service_remote
+      type: git
+    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
   idf:
     source:
       type: idf
@@ -72,11 +120,17 @@ direct_dependencies:
 - HXC_NVS
 - Interp
 - PWM
+- battery_level
 - blackbox
+- blackbox_service
 - circular_flash_buffer
+- diagnostic_log
+- espnow_link
+- espnow_remote
+- espnow_service_remote
 - idf
 - shell
 - wifi_manager
-manifest_hash: f3a5f6f6fc389383b7dee39d834176d85af3ee007d5ca6f4a5e16bf16e83a812
+manifest_hash: 36bfbd46ceb6e41550671043830b9ce0afe6d6f72cb2e878a20c69f894aabc57
 target: esp32c3
 version: 3.0.0

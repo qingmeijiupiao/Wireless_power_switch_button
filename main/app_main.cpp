@@ -23,7 +23,10 @@ extern "C" void app_main(void) {
     // 第二阶段：初始化持久化、诊断和电池服务，并异步完成本次启动的电量采样。
     ESP_ERROR_CHECK(Blackbox::init());
     ESP_ERROR_CHECK(HXC::NVS_Base::setup());
-    ESP_ERROR_CHECK(BlackboxService::init());
+    static constexpr const char* info_tags[] = {
+        "AppRuntime", "ButtonInput", "EspNowPairing", "EspNowRemote", "PowerManager",
+    };
+    ESP_ERROR_CHECK(BlackboxService::init({info_tags, sizeof(info_tags) / sizeof(info_tags[0])}));
     ESP_ERROR_CHECK(BatteryVoltage::init());
     AppRuntime::append_boot_diagnostics(boot);
     ESP_ERROR_CHECK(AppRuntime::start_boot_battery_sample(boot.usb_mode));
