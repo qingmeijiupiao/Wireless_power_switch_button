@@ -91,21 +91,20 @@ components/
   app/                        与本产品行为直接相关的应用组件
     app_runtime/              启动上下文、诊断和休眠收尾工具
     button_input/             按键事务、长短按策略和操作反馈
-    espnow_remote/            遥控端请求、响应等待和信道恢复
-    espnow_service/           Wireless Power 产品业务协议
     battery_voltage/          电池电压采样与校准
-    battery_level/            电量估算和显示约束
     power_manager/            唤醒来源和深度休眠管理
     status_led/               状态反馈
-    blackbox_service/         应用日志捕获和持久化
     shell_command/            维护命令注册
-  middleware/                 不直接决定产品交互的通用服务
-    espnow_link/              ESP-NOW 可靠链路、配对和 peer 存储
-    blackbox/                 结构化循环日志
-  bsp/                        ESP-IDF 外设、存储和控制台封装
-  common/                     与业务和硬件无关的通用算法
+  bsp/                        ESP-IDF 外设封装（当前仅 Temperature）
 scripts/                      构建后固件合并脚本
 ```
+
+遥控协议与应用、可靠链路、日志、电量估算、NVS/PWM/Flash 缓冲、插值、ADC、
+`wifi_manager`、`shell` 和 `diagnostic_log` 等共用组件已统一迁移到
+[wireless-power-components](https://github.com/qingmeijiupiao/wireless-power-components)
+公共仓库，由 `main/idf_component.yml` 固定引用。下方架构图中的 `middleware`、`common`
+以及 `app` 下的 `espnow_remote`、`espnow_service_remote`、`battery_level`、
+`blackbox_service` 表示逻辑分层，源码不在本仓库。
 
 总体依赖方向是：
 
@@ -147,9 +146,9 @@ flowchart LR
 
 | 层级 | 组件 | 负责内容 |
 |------|------|----------|
-| 遥控器应用 | `espnow_remote` | 查找目标、同步等待响应、信道恢复和诊断 |
-| 产品协议 | `espnow_service` | 开关命令、数据读取、电量上报及字段编解码 |
-| 可靠链路 | `espnow_link` | ESP-NOW 收发、ACK、重传、去重、配对和 peer 存储 |
+| 遥控器应用 | `espnow_remote`（公共仓库） | 查找目标、同步等待响应、信道恢复和诊断 |
+| 产品协议 | `espnow_service_remote`（公共仓库） | 开关命令、数据读取、电量上报及字段编解码 |
+| 可靠链路 | `espnow_link`（公共仓库） | ESP-NOW 收发、ACK、重传、去重、配对和 peer 存储 |
 
 这种划分可以避免按键代码直接处理数据帧，也可以避免可靠链路依赖某一种产品命令。
 
@@ -215,8 +214,9 @@ Flash 循环分区，用于排查偶发唤醒、通信超时和电量异常。�
 
 ### 添加维护命令
 
-Shell 命令集中注册在 `components/app/shell_command/`。底层控制台初始化由
-`components/bsp/shell/` 负责。产品命令应放在应用层，不应写入通用 Shell 组件。
+Shell 命令集中注册在 `components/app/shell_command/`。底层控制台初始化由公共仓库的
+[`shell`](https://github.com/qingmeijiupiao/wireless-power-components/blob/79d506e686ec743ad961ab76c732af96313db54a/components/bsp/shell/README.md)
+负责。产品命令应放在应用层，不应写入通用 Shell 组件。
 
 ## 组件文档
 
@@ -224,7 +224,7 @@ Shell 命令集中注册在 `components/app/shell_command/`。底层控制台初
 |------|------|
 | 启动辅助工具 | [app_runtime](components/app/app_runtime/README.md) |
 | 遥控端应用 | [espnow_remote 公共接口](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_remote/include/espnow_remote.h) |
-| 产品业务协议 | [espnow_service](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_service_remote/README.md) |
+| 产品业务协议 | [espnow_service_remote](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/product/espnow_service_remote/README.md) |
 | ESP-NOW 链路 | [espnow_link](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/middleware/espnow_link/README.md) |
 | 电池采样 | [battery_voltage](components/app/battery_voltage/README.md) |
 | 电量估算 | [battery_level](https://github.com/qingmeijiupiao/wireless-power-components/blob/15525b7a2d3cc0694bbc0b65dcac8335cd73d454/components/middleware/battery_level/README.md) |
@@ -305,7 +305,13 @@ APP、merged、SHA256 校验文件和 Launchpad 配置，并更新 `firmware-dis
 
 ## 本轮组件迁移
 
-电量估算、日志捕获、遥控客户端和遥控端协议已由按钮/急停共用；原本地目录已经移除。
-上文架构图中的这些组件为逻辑模块，实际源码位于`wireless-power-components` 公共仓库，引用见 `main/idf_component.yml`。
-公共组件已发布，并固定到 `15525b7a2d3cc0694bbc0b65dcac8335cd73d454`，构建时由 Component Manager 自动获取，不要求相邻仓库。
-按钮 GPIO、手势、休眠及电池采样仍在本工程。INFO 日志标签由 `app_main` 显式传入，原捕获范围保持不变。
+遥控协议与应用（`espnow_remote`、`espnow_service_remote`）、可靠链路（`espnow_link`）、
+电量估算（`battery_level`）、日志捕获（`blackbox_service`）、黑匣子存储（`blackbox`）、
+NVS/PWM/Flash 缓冲（`HXC_NVS`、`PWM`、`circular_flash_buffer`）、插值（`Interp`）、
+`ADC`、`wifi_manager`、`shell` 和 `diagnostic_log` 已由按钮/急停共用，原本地目录已经移除。
+上文架构图中的这些组件为逻辑模块，实际源码位于 `wireless-power-components` 公共仓库，
+引用见 `main/idf_component.yml`。遥控相关组件固定到
+`15525b7a2d3cc0694bbc0b65dcac8335cd73d454`，其余通用组件固定到
+`79d506e686ec743ad961ab76c732af96313db54a`；构建时由 Component Manager 自动获取，
+不要求相邻仓库。按钮 GPIO、手势、休眠及电池采样仍在本工程。INFO 日志标签由 `app_main`
+显式传入，原捕获范围保持不变。
