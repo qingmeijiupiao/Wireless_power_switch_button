@@ -60,10 +60,14 @@ dependencies:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/product/espnow_remote
     version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+  espnow_service_proto:
+    git: https://github.com/qingmeijiupiao/wireless-power-components.git
+    path: components/product/espnow_service_proto
+    version: b9816655d7e1db46a8e5d3c7e29e05d9edb5f9a4
   espnow_service_remote:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/product/espnow_service_remote
-    version: 15525b7a2d3cc0694bbc0b65dcac8335cd73d454
+    version: b9816655d7e1db46a8e5d3c7e29e05d9edb5f9a4
   espnow_link:
     git: https://github.com/qingmeijiupiao/wireless-power-components.git
     path: components/middleware/espnow_link
