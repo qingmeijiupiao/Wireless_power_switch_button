@@ -1,7 +1,7 @@
 idf_component_register(
     SRCS "src/app_runtime.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES
+    REQUIRES espnow_link
         blackbox
         blackbox_service
         battery_level

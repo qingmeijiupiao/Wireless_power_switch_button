@@ -5,6 +5,7 @@
 #include "blackbox.h"
 #include "blackbox_service.h"
 #include "button_input.h"
+#include "espnow_link.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -143,7 +144,7 @@ esp_err_t sleep_when_inputs_idle() {
     // 按键无线事务完成。这里也是应用进入深睡的唯一出口。
     while (PowerManager::usb_connected() ||
            PowerManager::button_pressed() ||
-           ButtonInput::is_busy()) {
+           ButtonInput::is_busy() || EspNowLink::is_pairing()) {
         vTaskDelay(INPUT_IDLE_POLL_TICKS);
     }
     ESP_LOGI(TAG, "inputs idle, entering deep sleep");
