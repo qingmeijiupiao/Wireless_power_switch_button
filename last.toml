@@ -1,17 +1,17 @@
 schema_version = 1
-version = "0.2.0"
-published_at = "2026-09-25T09:41:49Z"
+version = "0.3.0"
+published_at = "2026-10-05T12:23:05Z"
 
 [firmware.app]
-filename = "Wireless_power_switch_button_app_v0.2.0.bin"
+filename = "Wireless_power_switch_button_app_v0.3.0.bin"
 offset = "0x10000"
-size = 818896
-sha256 = "83d638f5aa5e46b6e245c79aed62aeb444582ef44e4daca0dfbf5e2d7421ef53"
-url = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@ffc80ddcc302ccfff7b098ae179ed4d6b36ee097/firmware/v0.2.0/Wireless_power_switch_button_app_v0.2.0.bin"
+size = 833248
+sha256 = "11b7dfeee8a136741c222873557aeceb4e9adbf90a9819627def03729d12c97f"
+url = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@6f68f7cb95b791382c3a7f5ab07227116b25b67a/firmware/v0.3.0/Wireless_power_switch_button_app_v0.3.0.bin"
 
 [firmware.merged]
-filename = "Wireless_power_switch_button_merged_v0.2.0.bin"
+filename = "Wireless_power_switch_button_merged_v0.3.0.bin"
 offset = "0x0"
-size = 884432
-sha256 = "779c192925105fafdb33e890b154375f9a497e93028a92fd64fcb2306ffd981b"
-url = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@ffc80ddcc302ccfff7b098ae179ed4d6b36ee097/firmware/v0.2.0/Wireless_power_switch_button_merged_v0.2.0.bin"
+size = 898784
+sha256 = "74517b772d6a7beb9bd0cece3b96f673573f7467eb008506875c5a90b904cd89"
+url = "https://cdn.jsdelivr.net/gh/qingmeijiupiao/Wireless_power_switch_button@6f68f7cb95b791382c3a7f5ab07227116b25b67a/firmware/v0.3.0/Wireless_power_switch_button_merged_v0.3.0.bin"
