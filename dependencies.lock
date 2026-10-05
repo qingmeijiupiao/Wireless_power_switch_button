@@ -72,29 +72,37 @@ dependencies:
       type: git
     version: d3f1c7822c9d033e4f9374416caee392be21ae40
   espnow_link:
+    component_hash: 4e752a75aa4f0d29ac826d30cb975bf45eb9ede981197107693822b65b7e6d69
     dependencies: []
     source:
-      path: ..\wireless-power-components\components\middleware\espnow_link
-      type: local
-    version: '*'
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/middleware/espnow_link
+      type: git
+    version: d3f1c7822c9d033e4f9374416caee392be21ae40
   espnow_remote:
+    component_hash: 59e070e370f314025e7d566f813267bf30258ee7f062027faa95edc71587eff2
     dependencies: []
     source:
-      path: ..\wireless-power-components\components\product\espnow_remote
-      type: local
-    version: '*'
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/product/espnow_remote
+      type: git
+    version: d3f1c7822c9d033e4f9374416caee392be21ae40
   espnow_service_proto:
+    component_hash: 06241d1f538adbd3382f6be8d9b3a2bcded57cb66f3816fd704fe8f685e0fea8
     dependencies: []
     source:
-      path: ..\wireless-power-components\components\product\espnow_service_proto
-      type: local
-    version: '*'
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/product/espnow_service_proto
+      type: git
+    version: d3f1c7822c9d033e4f9374416caee392be21ae40
   espnow_service_remote:
+    component_hash: bfde5c512414422f982d5ac09cfb0ba6c2d80e4ab8af0b003d4c44708890d862
     dependencies: []
     source:
-      path: ..\wireless-power-components\components\product\espnow_service_remote
-      type: local
-    version: '*'
+      git: https://github.com/qingmeijiupiao/wireless-power-components.git
+      path: components/product/espnow_service_remote
+      type: git
+    version: d3f1c7822c9d033e4f9374416caee392be21ae40
   idf:
     source:
       type: idf
@@ -132,6 +140,6 @@ direct_dependencies:
 - idf
 - shell
 - wifi_manager
-manifest_hash: 6a8bdc7f4d8e6479c48507a9faa23d3f7f97fdf6116782fd7242179b0f058b0d
+manifest_hash: fc6865aeef7955f51d1b6b177df03a959dc490af67a2ea34e8dc8ed6b5a47cd9
 target: esp32c3
 version: 3.0.0
